@@ -36,6 +36,8 @@ line-length = 110
 target-version = "py310"
 
 [tool.ruff.lint]
-# At this stage CI uses Ruff for correctness-critical import/name/syntax checks.
-# Full style cleanup will follow after real-data parity is established.
+# During the parity refactor, CI should fail on syntax/name/import-order issues,
+# but not on unused imports inherited from the notebook extraction. These will
+# be cleaned after real-data parity is established.
 select = ["E4", "E9", "F"]
+ignore = ["F401"]
