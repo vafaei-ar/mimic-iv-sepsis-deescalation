@@ -1,0 +1,55 @@
+site: psu_pcornet
+analysis_version: v1_external_harmonized
+pcornet_cdm_version: "6.1"
+output_root: outputs/pcornet_psu
+
+# Copy this file to config/pcornet_psu.local.yaml and edit local paths only.
+paths:
+  demographic: /path/to/DEMOGRAPHIC.parquet
+  encounter: /path/to/ENCOUNTER.parquet
+  diagnosis: /path/to/DIAGNOSIS.parquet
+  procedures: /path/to/PROCEDURES.parquet
+  vital: /path/to/VITAL.parquet
+  lab_result_cm: /path/to/LAB_RESULT_CM.parquet
+  prescribing: /path/to/PRESCRIBING.parquet
+  med_admin: /path/to/MED_ADMIN.parquet
+  death: /path/to/DEATH.parquet
+  obs_clin: /path/to/OBS_CLIN.parquet
+
+clock:
+  decision_hours: 72
+  classification_end_hours: 96
+  require_broad_coverage_window_start_hours: 48
+  require_broad_coverage_window_end_hours: 72
+  vasopressor_free_lookback_hours: 6
+  horizon_days: 30
+
+# Primary replication should use the source closest to the frozen MIMIC definition.
+# MIMIC is prescription-based, so PRESCRIBING is the default harmonized primary source.
+# MED_ADMIN is retained as a measurement-validation sensitivity using actual administrations.
+medications:
+  primary_source: prescribing
+  administration_sensitivity: true
+  unknown_route_policy: drug_identity_plus_non_iv_exclusions
+
+microbiology:
+  require_specimen_by_decision: true
+  primary_positive_rule: result_available_by_decision
+  organism_value_fields:
+    - result_qual
+    - raw_result
+    - result_snomed
+  test_name_fields:
+    - raw_lab_name
+    - lab_loinc
+    - lab_px
+
+bootstrap:
+  primary_reps: 1000
+  progressive_reps: 1000
+  seed: 20260426
+
+weighting:
+  truncation_percentiles:
+    - [1.0, 99.0]
+    - [2.5, 97.5]
