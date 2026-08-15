@@ -18,6 +18,6 @@ def test_iptw_smoke():
     rt, rc, rd, rr = risks(w, "y", "SW_A")
     assert all(np.isfinite(v) for v in [rt, rc, rd, rr])
     summary = weight_summary(w)
-    assert set(summary["group"]) == {"overall", "deescalated_stopped", "continued"}
+    assert set(summary["group"]) == {"overall", "deescalated_stopped", "continued_broad"}
     bal = balance_table(w, ["x"])
     assert "after" in bal
