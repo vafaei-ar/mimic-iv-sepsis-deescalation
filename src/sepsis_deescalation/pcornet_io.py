@@ -38,18 +38,37 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def combine_date_time(date: pd.Series, time: pd.Series | None = None) -> pd.Series:
-    base = pd.to_datetime(date, errors="coerce")
+    """Combine PCORnet date and time columns into timestamps.
+
+    PCORnet time fields may arrive as numeric HHMM values or text such as HH:MM / HH:MM:SS.
+    Missing or unparseable times fall back to midnight on the supplied date.
+    """
+    base = pd.to_datetime(date, errors="coerce").dt.normalize()
     if time is None:
         return base
-    t = time.copy()
-    if pd.api.types.is_numeric_dtype(t):
-        vals = pd.to_numeric(t, errors="coerce")
-        hours = (vals // 100).fillna(0).astype(int)
-        minutes = (vals % 100).fillna(0).astype(int)
-        return base + pd.to_timedelta(hours, unit="h") + pd.to_timedelta(minutes, unit="m")
-    text = t.astype(str).str.strip()
-    parsed = pd.to_timedelta(text.where(text.str.match(r"^\d{1,2}:\d{2}$"), other=""), errors="coerce")
-    return base + parsed.fillna(pd.Timedelta(0))
+
+    if pd.api.types.is_numeric_dtype(time):
+        vals = pd.to_numeric(time, errors="coerce")
+        hours = (vals // 100).where(vals.notna())
+        minutes = (vals % 100).where(vals.notna())
+        valid = hours.between(0, 23) & minutes.between(0, 59)
+        offset = pd.to_timedelta(hours.where(valid, 0).fillna(0), unit="h") + pd.to_timedelta(
+            minutes.where(valid, 0).fillna(0), unit="m"
+        )
+        return base + offset
+
+    text = time.astype("string").str.strip()
+    hhmm = text.str.extract(r"^(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::(?P<second>\d{2}(?:\.\d+)?))?$")
+    hours = pd.to_numeric(hhmm["hour"], errors="coerce")
+    minutes = pd.to_numeric(hhmm["minute"], errors="coerce")
+    seconds = pd.to_numeric(hhmm["second"], errors="coerce").fillna(0)
+    valid = hours.between(0, 23) & minutes.between(0, 59) & seconds.between(0, 59.999999)
+    offset = (
+        pd.to_timedelta(hours.where(valid, 0).fillna(0), unit="h")
+        + pd.to_timedelta(minutes.where(valid, 0).fillna(0), unit="m")
+        + pd.to_timedelta(seconds.where(valid, 0).fillna(0), unit="s")
+    )
+    return base + offset
 
 
 def resolve_path(cfg: dict[str, Any], key: str) -> Path:
