@@ -93,6 +93,7 @@ def add_baseline_labs(cohort: pd.DataFrame, source) -> pd.DataFrame:
 
 
 def add_baseline_vitals(cohort: pd.DataFrame, source) -> pd.DataFrame:
+    """Exact scripted equivalent of the v5.5 baseline vital feature function."""
     d = cohort.copy()
     patterns = {
         "heart_rate": r"^heart rate$",
@@ -104,6 +105,11 @@ def add_baseline_vitals(cohort: pd.DataFrame, source) -> pd.DataFrame:
     items = select_d_items(source, patterns)
     stay_ids = set(d["stay_id"].dropna().astype(int))
     itemids = set(items["itemid"].astype(int))
+    if not stay_ids or not itemids:
+        for col in ["hr_max_pre72", "rr_max_pre72", "spo2_min_pre72", "map_min_pre72", "temp_max_pre72"]:
+            d[col] = np.nan
+            d[f"{col}_missing"] = 1
+        return d
     ce = read_csv_filtered(
         source,
         "icu/chartevents.csv.gz",
@@ -114,19 +120,18 @@ def add_baseline_vitals(cohort: pd.DataFrame, source) -> pd.DataFrame:
     )
     ce = ce.merge(items, on="itemid", how="inner").merge(d[["stay_id", "intime", "decision_time"]], on="stay_id", how="inner")
     ce = ce.loc[(ce["charttime"] >= ce["intime"]) & (ce["charttime"] <= ce["decision_time"]) & ce["valuenum"].notna()].copy()
-    ranges = {"heart_rate": (20, 250), "resp_rate": (1, 90), "spo2": (20, 100), "map": (20, 200)}
+    ranges = {"heart_rate": (20, 250), "resp_rate": (1, 90), "spo2": (20, 100), "map": (20, 200), "temperature": (20, 110)}
     for concept, (lo, hi) in ranges.items():
         ce.loc[(ce["concept"] == concept) & ((ce["valuenum"] < lo) | (ce["valuenum"] > hi)), "valuenum"] = np.nan
-    tmask = ce["concept"] == "temperature"
-    ce.loc[tmask & (ce["valuenum"] > 70), "valuenum"] = (ce.loc[tmask & (ce["valuenum"] > 70), "valuenum"] - 32) * 5 / 9
-    ce.loc[tmask & ((ce["valuenum"] < 25) | (ce["valuenum"] > 45)), "valuenum"] = np.nan
+    ce = ce.dropna(subset=["valuenum"])
     specs = {"heart_rate": ("max", "hr_max_pre72"), "resp_rate": ("max", "rr_max_pre72"), "spo2": ("min", "spo2_min_pre72"), "map": ("min", "map_min_pre72"), "temperature": ("max", "temp_max_pre72")}
     for concept, (fn, out) in specs.items():
         sub = ce.loc[ce["concept"] == concept]
         vals = sub.groupby("stay_id")["valuenum"].agg(fn) if len(sub) else pd.Series(dtype=float)
         d[out] = d["stay_id"].map(vals)
         d[f"{out}_missing"] = d[out].isna().astype(int)
-        d[out] = d[out].fillna(d[out].median() if d[out].notna().any() else 0)
+        med = d[out].median()
+        d[out] = d[out].fillna(0.0 if pd.isna(med) else med)
     return d
 
 
@@ -158,12 +163,17 @@ def prepare_vasopressors(cohort: pd.DataFrame, inp: pd.DataFrame) -> tuple[pd.Da
 
 def add_vasopressor_windows(d: pd.DataFrame, vaso: pd.DataFrame) -> pd.DataFrame:
     d = d.copy()
+    if len(vaso) == 0:
+        d["vasopressor_any_0_24h"] = 0
+        d["vasopressor_any_48_72h"] = 0
+        d["vasopressor_stopped_before_72h"] = 0
+        return d
     early = d[["stay_id", "first_broad_time"]].copy(); early["window_start"] = early["first_broad_time"]; early["window_end"] = early["first_broad_time"] + pd.Timedelta(hours=24)
     late = d[["stay_id", "decision_time"]].copy(); late["window_start"] = late["decision_time"] - pd.Timedelta(hours=24); late["window_end"] = late["decision_time"]
-    v0 = overlap_rows(vaso, "stay_id", "vaso_start", "vaso_stop", early) if len(vaso) else pd.DataFrame()
-    v1 = overlap_rows(vaso, "stay_id", "vaso_start", "vaso_stop", late) if len(vaso) else pd.DataFrame()
-    d["vasopressor_any_0_24h"] = d["stay_id"].isin(set(v0.get("stay_id", []))).astype(int)
-    d["vasopressor_any_48_72h"] = d["stay_id"].isin(set(v1.get("stay_id", []))).astype(int)
+    v0 = overlap_rows(vaso, "stay_id", "vaso_start", "vaso_stop", early)
+    v1 = overlap_rows(vaso, "stay_id", "vaso_start", "vaso_stop", late)
+    d["vasopressor_any_0_24h"] = d["stay_id"].isin(set(v0["stay_id"])).astype(int)
+    d["vasopressor_any_48_72h"] = d["stay_id"].isin(set(v1["stay_id"])).astype(int)
     d["vasopressor_stopped_before_72h"] = ((d["vasopressor_any_0_24h"] == 1) & (d["vasopressor_any_48_72h"] == 0)).astype(int)
     return d
 
@@ -207,6 +217,14 @@ def add_vital_trajectories(d: pd.DataFrame, source) -> pd.DataFrame:
     patterns = {"heart_rate": r"^heart rate$", "resp_rate": r"respiratory rate", "spo2": r"o2 saturation|spo2|oxygen saturation", "map": r"blood pressure mean|arterial blood pressure mean|non invasive blood pressure mean", "temperature": r"temperature", "gcs_total": r"gcs.*total|glasgow coma scale.*total", "fio2": r"fraction inspired oxygen|fio2"}
     items = select_d_items(source, patterns)
     stay_ids, itemids = set(d["stay_id"].dropna().astype(int)), set(items["itemid"].astype(int))
+    out_cols = [f"{base}_{win}" for base in ["heart_rate", "resp_rate", "spo2", "map", "temperature", "gcs_total", "fio2"] for win in ["0_24h", "48_72h"]]
+    for col in out_cols + ["fever_last12h_pre72"]:
+        d[col] = np.nan
+    if not stay_ids or not itemids:
+        for col in out_cols:
+            d = fill_numeric_with_median(d, col)
+        d["fever_last12h_pre72"] = 0
+        return d
     ce = read_csv_filtered(source, "icu/chartevents.csv.gz", usecols=["subject_id", "hadm_id", "stay_id", "charttime", "itemid", "valuenum"], parse_dates=["charttime"], filter_func=lambda c: c["stay_id"].isin(stay_ids) & c["itemid"].isin(itemids), chunksize=500_000)
     ce = ce.merge(items, on="itemid").merge(d[["stay_id", "first_broad_time", "decision_time"]], on="stay_id")
     ce = ce.loc[ce["valuenum"].notna()].copy()
@@ -218,15 +236,18 @@ def add_vital_trajectories(d: pd.DataFrame, source) -> pd.DataFrame:
         ce.loc[(ce["concept"] == concept) & ((ce["valuenum"] < lo) | (ce["valuenum"] > hi)), "valuenum"] = np.nan
     tm = ce["concept"] == "temperature"; ce.loc[tm & (ce["valuenum"] > 70), "valuenum"] = (ce.loc[tm & (ce["valuenum"] > 70), "valuenum"] - 32) * 5 / 9; ce.loc[tm & ((ce["valuenum"] < 25) | (ce["valuenum"] > 45)), "valuenum"] = np.nan
     fm = ce["concept"] == "fio2"; ce.loc[fm & (ce["valuenum"] > 1.5), "valuenum"] = ce.loc[fm & (ce["valuenum"] > 1.5), "valuenum"] / 100
+    ce = ce.dropna(subset=["valuenum"])
     aggregation = {"heart_rate": "max", "resp_rate": "max", "spo2": "min", "map": "min", "temperature": "max", "gcs_total": "min", "fio2": "max"}
     for concept, fn in aggregation.items():
         sub = ce.loc[ce["concept"] == concept]
         for flag, suffix in [("early", "0_24h"), ("late", "48_72h")]:
             win = sub.loc[sub[flag]]
-            d[f"{concept}_{suffix}"] = d["stay_id"].map(win.groupby("stay_id")["valuenum"].agg(fn) if len(win) else pd.Series(dtype=float))
-            d = fill_numeric_with_median(d, f"{concept}_{suffix}")
+            if len(win):
+                d[f"{concept}_{suffix}"] = d["stay_id"].map(win.groupby("stay_id")["valuenum"].agg(fn))
     fever_ids = set(ce.loc[(ce["concept"] == "temperature") & ce["last12"] & (ce["valuenum"] >= 38), "stay_id"])
     d["fever_last12h_pre72"] = d["stay_id"].isin(fever_ids).astype(int)
+    for col in out_cols:
+        d = fill_numeric_with_median(d, col)
     d["map_improved_pre72"] = (d["map_48_72h"] > d["map_0_24h"]).astype(int)
     d["spo2_improved_pre72"] = (d["spo2_48_72h"] > d["spo2_0_24h"]).astype(int)
     d["temp_improved_pre72"] = (d["temperature_48_72h"] < d["temperature_0_24h"]).astype(int)
@@ -250,16 +271,22 @@ def add_urine_output(d: pd.DataFrame, source) -> pd.DataFrame:
 
 def add_steroid_bmi(d: pd.DataFrame, rx: pd.DataFrame, source) -> pd.DataFrame:
     d = d.copy(); pre = d[["hadm_id", "first_broad_time", "decision_time"]].copy(); pre["window_start"] = pre["first_broad_time"]; pre["window_end"] = pre["decision_time"]
-    steroid = rx.loc[rx["drug_lower"].str.contains("hydrocortisone|methylprednisolone|prednisone|prednisolone|dexamethasone", na=False) & ~rx["route_lower"].str.contains("topical|ophth|otic|inhal", na=False)]
+    steroid = rx.loc[rx["drug_lower"].str.contains("hydrocortisone|methylprednisolone|prednisone|prednisolone|dexamethasone", na=False) & ~rx["route_lower"].str.contains("topical|ophth|otic|inhal", na=False)].copy()
     ov = overlap_rows(steroid, "hadm_id", "coverage_start", "coverage_stop", pre) if len(steroid) else pd.DataFrame()
-    d["steroid_any_pre72"] = d["hadm_id"].isin(set(ov.get("hadm_id", []))).astype(int); d["hydrocortisone_any_pre72"] = d["hadm_id"].isin(set(ov.loc[ov.get("drug_lower", pd.Series(dtype=str)).str.contains("hydrocortisone", na=False), "hadm_id"] if len(ov) else [])).astype(int)
+    d["steroid_any_pre72"] = d["hadm_id"].isin(set(ov["hadm_id"]) if len(ov) else set()).astype(int)
+    hydrocort_ids = set(ov.loc[ov["drug_lower"].str.contains("hydrocortisone", na=False), "hadm_id"]) if len(ov) else set()
+    d["hydrocortisone_any_pre72"] = d["hadm_id"].isin(hydrocort_ids).astype(int)
     try:
         items = select_d_items(source, {"weight_kg": r"admission weight|daily weight|weight", "height_cm": r"height"}); stay_ids, itemids = set(d["stay_id"].dropna().astype(int)), set(items["itemid"].astype(int))
-        ce = read_csv_filtered(source, "icu/chartevents.csv.gz", usecols=["subject_id", "hadm_id", "stay_id", "charttime", "itemid", "valuenum"], parse_dates=["charttime"], filter_func=lambda c: c["stay_id"].isin(stay_ids) & c["itemid"].isin(itemids), chunksize=500_000).merge(items, on="itemid").merge(d[["stay_id", "intime", "decision_time"]], on="stay_id")
-        ce = ce.loc[(ce["charttime"] >= ce["intime"]) & (ce["charttime"] <= ce["decision_time"]) & ce["valuenum"].notna()]
-        h = ce.loc[ce["concept"] == "height_cm"].copy(); h.loc[(h["valuenum"] > 40) & (h["valuenum"] < 90), "valuenum"] *= 2.54; h = h.loc[(h["valuenum"] >= 120) & (h["valuenum"] <= 230)].sort_values(["stay_id", "charttime"]).drop_duplicates("stay_id").set_index("stay_id")["valuenum"]
-        w = ce.loc[(ce["concept"] == "weight_kg") & (ce["valuenum"] >= 25) & (ce["valuenum"] <= 300)].sort_values(["stay_id", "charttime"]).drop_duplicates("stay_id").set_index("stay_id")["valuenum"]
-        d["height_cm_pre72"] = d["stay_id"].map(h); d["weight_kg_pre72"] = d["stay_id"].map(w); d["bmi_pre72"] = d["weight_kg_pre72"] / ((d["height_cm_pre72"] / 100) ** 2)
+        if stay_ids and itemids:
+            ce = read_csv_filtered(source, "icu/chartevents.csv.gz", usecols=["subject_id", "hadm_id", "stay_id", "charttime", "itemid", "valuenum"], parse_dates=["charttime"], filter_func=lambda c: c["stay_id"].isin(stay_ids) & c["itemid"].isin(itemids), chunksize=500_000).merge(items, on="itemid").merge(d[["stay_id", "intime", "decision_time"]], on="stay_id")
+            ce = ce.loc[(ce["charttime"] >= ce["intime"]) & (ce["charttime"] <= ce["decision_time"]) & ce["valuenum"].notna()]
+            d["height_cm_pre72"] = np.nan; d["weight_kg_pre72"] = np.nan
+            h = ce.loc[ce["concept"] == "height_cm"].copy(); h.loc[(h["valuenum"] > 40) & (h["valuenum"] < 90), "valuenum"] *= 2.54; h = h.loc[(h["valuenum"] >= 120) & (h["valuenum"] <= 230)].sort_values(["stay_id", "charttime"]).drop_duplicates("stay_id", keep="first").set_index("stay_id")["valuenum"]
+            w = ce.loc[(ce["concept"] == "weight_kg") & (ce["valuenum"] >= 25) & (ce["valuenum"] <= 300)].sort_values(["stay_id", "charttime"]).drop_duplicates("stay_id", keep="first").set_index("stay_id")["valuenum"]
+            d["height_cm_pre72"] = d["stay_id"].map(h); d["weight_kg_pre72"] = d["stay_id"].map(w); d["bmi_pre72"] = d["weight_kg_pre72"] / ((d["height_cm_pre72"] / 100) ** 2)
+        else:
+            d["bmi_pre72"] = np.nan
     except Exception:
         d["bmi_pre72"] = np.nan
     return fill_numeric_with_median(d, "bmi_pre72", 30.0)
@@ -271,7 +298,7 @@ def add_sofa_like(d: pd.DataFrame) -> pd.DataFrame:
     bili = lambda x: np.select([x < 1.2, x < 2, x < 6, x < 12, x >= 12], [0, 1, 2, 3, 4], default=0)
     plate = lambda x: np.select([x >= 150, x >= 100, x >= 50, x >= 20, x < 20], [0, 1, 2, 3, 4], default=0)
     gcs = lambda x: np.select([x >= 15, x >= 13, x >= 10, x >= 6, x < 6], [0, 1, 2, 3, 4], default=0)
-    for suffix, phase in [("0_24h", "early"), ("48_72h", "late")]:
+    for suffix in ["0_24h", "48_72h"]:
         d[f"cv_score_{suffix}"] = np.where(d[f"vasopressor_any_{suffix}"] == 1, 3, np.where(d[f"map_{suffix}"] < 70, 1, 0))
         creat_col = "creatinine_early_last_0_24h" if suffix == "0_24h" else "creatinine_late_last_48_72h"
         urine_col = "urine_output_ml_0_24h" if suffix == "0_24h" else "urine_output_ml_48_72h"
