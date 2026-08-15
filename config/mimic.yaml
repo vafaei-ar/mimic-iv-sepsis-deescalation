@@ -9,7 +9,7 @@ source_candidates:
 output_root: outputs/mimic
 
 clock:
-  qualifying_start_hours_before_icu: 24
+  qualifying_start_hours_before_icu: 6
   qualifying_start_hours_after_icu: 24
   decision_hours: 72
   classification_end_hours: 96
