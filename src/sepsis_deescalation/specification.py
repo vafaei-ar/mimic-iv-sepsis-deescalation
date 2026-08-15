@@ -39,23 +39,23 @@ BINARY_VARS = [
 
 CANDIDATE_PS_VARS = CONTINUOUS_VARS + BINARY_VARS
 
+_BASE = ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "hours_admit_to_icu", "micu", "sicu", "cardiac_icu", "neuro_icu"]
+
 PROGRESSIVE_MODELS = [
-    {
-        "model": "M1 demographics/comorbidity only",
-        "vars": ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "micu", "sicu", "cardiac_icu", "neuro_icu", "hours_admit_to_icu"],
-    },
+    {"model": "M1 demographics/comorbidity only", "vars": _BASE},
     {
         "model": "M2 + baseline severity/labs",
-        "vars": ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "micu", "sicu", "cardiac_icu", "neuro_icu", "hours_admit_to_icu", "vent_proc", "vasopressor_any_pre72", "vasopressor_hours_pre72", "lactate_last_pre72", "creatinine_last_pre72", "white_blood_cells_last_pre72", "severity_pre72"],
+        "vars": _BASE + ["vent_proc", "vasopressor_any_pre72", "vasopressor_hours_pre72", "lactate_last_pre72", "creatinine_last_pre72", "white_blood_cells_last_pre72", "severity_pre72"],
     },
     {
         "model": "M3 + near-decision clinical status",
-        "vars": ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "micu", "sicu", "cardiac_icu", "neuro_icu", "hours_admit_to_icu", "vent_proc", "vasopressor_any_pre72", "vasopressor_hours_pre72", "lactate_last_pre72", "creatinine_last_pre72", "white_blood_cells_last_pre72", "severity_pre72", "heart_rate_48_72h", "resp_rate_48_72h", "spo2_48_72h", "map_48_72h", "temperature_48_72h", "gcs_total_48_72h", "fio2_48_72h", "urine_output_ml_48_72h", "fever_last12h_pre72", "vasopressor_any_48_72h", "steroid_any_pre72"],
+        "vars": _BASE + [
+            "vent_proc", "vasopressor_any_pre72", "vasopressor_hours_pre72", "lactate_last_pre72", "creatinine_last_pre72", "white_blood_cells_last_pre72", "severity_pre72",
+            "lactate_late_last_48_72h", "wbc_late_last_48_72h", "creatinine_late_last_48_72h", "platelet_late_worst_48_72h", "bilirubin_late_worst_48_72h",
+            "heart_rate_48_72h", "resp_rate_48_72h", "spo2_48_72h", "map_48_72h", "temperature_48_72h", "urine_output_ml_48_72h", "sofa_like_48_72h",
+        ],
     },
-    {
-        "model": "M4 + improvement trajectories and intensity",
-        "vars": CANDIDATE_PS_VARS,
-    },
+    {"model": "M4 + improvement trajectories and intensity", "vars": CANDIDATE_PS_VARS},
 ]
 
 CLINICAL_IMPROVEMENT_VARS = [
