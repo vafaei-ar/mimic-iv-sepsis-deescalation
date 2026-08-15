@@ -3,7 +3,8 @@ analysis_version: v1_external_harmonized
 pcornet_cdm_version: "6.1"
 output_root: outputs/pcornet_psu
 
-# Copy this file to config/pcornet_psu.local.yaml and edit local paths only.
+# Copy this file to config/pcornet_psu.local.yaml and edit local paths/mappings only.
+# The local file is gitignored.
 paths:
   demographic: /path/to/DEMOGRAPHIC.parquet
   encounter: /path/to/ENCOUNTER.parquet
@@ -15,8 +16,22 @@ paths:
   med_admin: /path/to/MED_ADMIN.parquet
   death: /path/to/DEATH.parquet
   obs_clin: /path/to/OBS_CLIN.parquet
+  # Core PCORnet does not guarantee timestamped ICU location. Use a local ADT/ICU table.
+  icu_stays: /path/to/PSU_LOCAL_ICU_STAYS.parquet
+  # Prefer a local microbiology table when it contains organism identity and true result timestamps.
+  microbiology_local: /path/to/PSU_LOCAL_MICROBIOLOGY.parquet
+
+# Required local ICU table mapping. Do not substitute hospital admission time for ICU time.
+icu:
+  patid: patid
+  encounterid: encounterid
+  start_datetime: icu_start_dt
+  end_datetime: icu_end_dt
+  careunit: careunit
 
 clock:
+  qualifying_start_hours_before_icu: 6
+  qualifying_start_hours_after_icu: 24
   decision_hours: 72
   classification_end_hours: 96
   require_broad_coverage_window_start_hours: 48
@@ -25,24 +40,73 @@ clock:
   horizon_days: 30
 
 # Primary replication should use the source closest to the frozen MIMIC definition.
-# MIMIC is prescription-based, so PRESCRIBING is the default harmonized primary source.
-# MED_ADMIN is retained as a measurement-validation sensitivity using actual administrations.
+# PRESCRIBING is therefore the harmonized primary source; MED_ADMIN is a measurement-validation sensitivity.
 medications:
   primary_source: prescribing
   administration_sensitivity: true
+  missing_stop_fill_hours: 24
   unknown_route_policy: drug_identity_plus_non_iv_exclusions
+  prescribing_columns:
+    patid: patid
+    encounterid: encounterid
+    code: rxnorm_cui
+    raw_code: raw_rxnorm_cui
+    raw_name: raw_rx_med_name
+    route: rx_route
+    start_date: rx_start_date
+    start_time: rx_order_time
+    end_date: rx_end_date
+  med_admin_columns:
+    patid: patid
+    encounterid: encounterid
+    code: medadmin_code
+    code_type: medadmin_type
+    raw_name: raw_medadmin_med_name
+    route: medadmin_route
+    raw_route: raw_medadmin_route
+    start_date: medadmin_start_date
+    start_time: medadmin_start_time
+    stop_date: medadmin_stop_date
+    stop_time: medadmin_stop_time
 
+# Microbiology must be audited before the external analysis is frozen.
+# Preferred: a local table with specimen collection, result-available/final timestamp, test, specimen, and organism.
 microbiology:
+  source: local
   require_specimen_by_decision: true
   primary_positive_rule: result_available_by_decision
-  organism_value_fields:
-    - result_qual
-    - raw_result
-    - result_snomed
-  test_name_fields:
-    - raw_lab_name
-    - lab_loinc
-    - lab_px
+  local_columns:
+    patid: patid
+    encounterid: encounterid
+    specimen_datetime: specimen_dt
+    result_datetime: result_dt
+    specimen: specimen
+    test_name: test_name
+    organism: organism
+  # Fallback only after confirming PSU ETL semantics. PCORnet permits RESULT_DATE substitution from SPECIMEN_DATE.
+  lab_result_cm_columns:
+    patid: patid
+    encounterid: encounterid
+    specimen_date: specimen_date
+    specimen_time: specimen_time
+    result_date: result_date
+    result_time: result_time
+    specimen: specimen_source
+    test_name: raw_lab_name
+    loinc: lab_loinc
+    result_qual: result_qual
+    raw_result: raw_result
+    result_snomed: result_snomed
+
+# Local mapping for vasoactive drugs. Exact PSU codes/names should be audited before final analysis.
+vasopressors:
+  source: med_admin
+  name_patterns:
+    - norepinephrine
+    - phenylephrine
+    - vasopressin
+    - epinephrine
+    - dopamine
 
 bootstrap:
   primary_reps: 1000
@@ -53,3 +117,7 @@ weighting:
   truncation_percentiles:
     - [1.0, 99.0]
     - [2.5, 97.5]
+
+outputs:
+  save_patient_level_cohort: true
+  zip_run_directory: true
