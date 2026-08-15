@@ -1,0 +1,39 @@
+site: mimic_iv
+analysis_version: v5_6_scripts
+mimic_version: "3.1"
+source_env: MIMIC_SOURCE
+source_candidates:
+  - /home/asadr/datasets/MIMIC/physionet.org/files/mimiciv/3.1
+  - ./physionet.org/files/mimiciv/3.1
+  - ./mimiciv/3.1
+output_root: outputs/mimic
+
+clock:
+  qualifying_start_hours_before_icu: 24
+  qualifying_start_hours_after_icu: 24
+  decision_hours: 72
+  classification_end_hours: 96
+  require_broad_coverage_window_start_hours: 48
+  require_broad_coverage_window_end_hours: 72
+  vasopressor_free_lookback_hours: 6
+  horizon_days: 30
+
+medications:
+  missing_stop_fill_hours: 24
+  stop_fill_sensitivity_hours: [12, 48]
+  broad_route_required: true
+
+bootstrap:
+  primary_reps: 1000
+  progressive_reps: 1000
+  seed: 20260426
+
+weighting:
+  truncation_percentiles:
+    - [1.0, 99.0]
+    - [2.5, 97.5]
+
+outputs:
+  save_patient_level_cohort: true
+  zip_run_directory: true
+  figure_ready_csvs: true
