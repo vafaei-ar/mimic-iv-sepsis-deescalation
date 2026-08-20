@@ -37,7 +37,19 @@ BINARY_VARS = [
     "steroid_any_pre72", "hydrocortisone_any_pre72",
 ]
 
-CANDIDATE_PS_VARS = CONTINUOUS_VARS + BINARY_VARS
+# In the v5.6 real-data audit these pairs were exact duplicates across all 9,589
+# analytic admissions. Removing the second member of each pair changes no measured
+# confounding information and avoids avoidable rank deficiency in the PS design.
+# They remain in CONTINUOUS_VARS/BINARY_VARS for descriptive reporting.
+PS_EXCLUDED_EXACT_DUPLICATES = {
+    "clinical_micro_records_pre72": "duplicates micro_records_pre72 in MIMIC v5.6 audit",
+    "white_blood_cells_missing_pre72": "duplicates creatinine_missing_pre72 in MIMIC v5.6 audit",
+}
+
+CANDIDATE_PS_VARS = [
+    v for v in (CONTINUOUS_VARS + BINARY_VARS)
+    if v not in PS_EXCLUDED_EXACT_DUPLICATES
+]
 
 _BASE = ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "hours_admit_to_icu", "micu", "sicu", "cardiac_icu", "neuro_icu"]
 
