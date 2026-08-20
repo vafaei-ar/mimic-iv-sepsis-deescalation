@@ -1,5 +1,5 @@
 site: mimic_iv
-analysis_version: v5_6_scripts
+analysis_version: v5_7_final
 mimic_version: "3.1"
 source_env: MIMIC_SOURCE
 source_candidates:
@@ -26,9 +26,12 @@ medications:
 bootstrap:
   primary_reps: 1000
   progressive_reps: 1000
+  weighting_sensitivity_reps: 1000
   seed: 20260426
 
 weighting:
+  primary_estimand: ATE
+  overlap_sensitivity: true
   truncation_percentiles:
     - [1.0, 99.0]
     - [2.5, 97.5]
