@@ -29,6 +29,14 @@ bootstrap:
   weighting_sensitivity_reps: 1000
   seed: 20260426
 
+execution:
+  # CLI --jobs overrides this; 'auto' uses up to 8 worker processes.
+  jobs: auto
+  # Development mode uses this many bootstrap replicates per analysis.
+  fast_bootstrap_reps: 100
+  # Patient-level Parquet caches are local only and are ignored by git.
+  cache_root: outputs/cache/mimic
+
 weighting:
   primary_estimand: ATE
   overlap_sensitivity: true
