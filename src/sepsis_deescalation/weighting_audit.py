@@ -150,7 +150,6 @@ def run_weighting_audit(
     tails = weight_tail_diagnostics(d)
     duplicates = exact_duplicate_covariates(d, candidate_vars)
 
-    ps_vars_path = None
     if out_dir is not None:
         out = Path(out_dir)
         out.mkdir(parents=True, exist_ok=True)
