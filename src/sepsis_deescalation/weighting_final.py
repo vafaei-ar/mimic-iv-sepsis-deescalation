@@ -6,6 +6,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from .fast_bootstrap import bootstrap_weighting_strategies
 from .stats import balance_table, effective_sample_size, fit_stabilized_iptw, risks
 
 
@@ -37,56 +38,6 @@ def _strategy_summary(df: pd.DataFrame, vars_: Sequence[str], weight_col: str, l
     }
 
 
-def _bootstrap_all(
-    cohort: pd.DataFrame,
-    variables: Sequence[str],
-    truncation_percentiles: Sequence[Sequence[float]],
-    reps: int,
-    seed: int,
-) -> pd.DataFrame:
-    rng = np.random.default_rng(seed)
-    rows: list[dict] = []
-    n = len(cohort)
-    for rep in range(reps):
-        s = cohort.iloc[rng.integers(0, n, size=n)].copy()
-        if s["A"].nunique() != 2:
-            continue
-        try:
-            w, _, _ = fit_stabilized_iptw(s, variables)
-        except Exception:
-            continue
-
-        ow = add_overlap_weights(w)
-        rt, rc, rd, rr = risks(ow, "death_by_horizon", "OW_A")
-        rows.append({
-            "rep": rep,
-            "analysis": "Overlap weighting",
-            "risk_treated": rt,
-            "risk_control": rc,
-            "risk_difference": rd,
-            "risk_ratio": rr,
-        })
-
-        for low, high in truncation_percentiles:
-            low = float(low)
-            high = float(high)
-            col = "SW_A_truncated"
-            tmp = w.copy()
-            lo = float(tmp["SW_A"].quantile(low / 100.0))
-            hi = float(tmp["SW_A"].quantile(high / 100.0))
-            tmp[col] = tmp["SW_A"].clip(lo, hi)
-            rt, rc, rd, rr = risks(tmp, "death_by_horizon", col)
-            rows.append({
-                "rep": rep,
-                "analysis": f"IPTW truncated {low:g}/{high:g}",
-                "risk_treated": rt,
-                "risk_control": rc,
-                "risk_difference": rd,
-                "risk_ratio": rr,
-            })
-    return pd.DataFrame(rows)
-
-
 def _bootstrap_ci(boot: pd.DataFrame, requested: int) -> pd.DataFrame:
     rows: list[dict] = []
     if boot.empty:
@@ -112,12 +63,14 @@ def run_final_weighting_sensitivities(
     truncation_percentiles: Sequence[Sequence[float]] = ((1.0, 99.0), (2.5, 97.5)),
     reps: int = 1000,
     seed: int = 20260426,
+    jobs: int | str | None = "auto",
 ) -> dict[str, pd.DataFrame]:
-    """Run prespecified final weighting sensitivities.
+    """Run prespecified final weighting sensitivities efficiently.
 
     Primary inference remains stabilized IPTW for the ATE. Overlap weighting is
-    reported as a separate overlap-population estimand. Weight truncation remains
-    an ATE sensitivity and is not promoted solely because it changes the point estimate.
+    reported as a separate overlap-population estimand. All sensitivity
+    strategies share one PS fit per bootstrap replicate; this changes only the
+    computation plan, not any estimand or weighting definition.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -141,8 +94,16 @@ def run_final_weighting_sensitivities(
     summary = pd.DataFrame(rows)
     summary.to_csv(out / "final_weighting_point_estimates.csv", index=False)
 
-    boot = _bootstrap_all(cohort, candidate_vars, truncation_percentiles, reps, seed)
+    boot, boot_diag = bootstrap_weighting_strategies(
+        cohort,
+        list(candidate_vars),
+        truncation_percentiles,
+        reps,
+        seed,
+        jobs=jobs,
+    )
     boot.to_csv(out / "final_weighting_bootstrap_replicates.csv", index=False)
+    boot_diag.to_csv(out / "final_weighting_bootstrap_diagnostics.csv", index=False)
     ci = _bootstrap_ci(boot, reps)
     ci.to_csv(out / "final_weighting_bootstrap_ci.csv", index=False)
-    return {"summary": summary, "bootstrap": boot, "ci": ci}
+    return {"summary": summary, "bootstrap": boot, "ci": ci, "bootstrap_diagnostics": boot_diag}
