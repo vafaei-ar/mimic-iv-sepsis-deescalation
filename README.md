@@ -16,31 +16,28 @@ src/sepsis_deescalation reusable analysis package
 scripts/                command-line entry points
 tests/                  unit/smoke tests
 docs/                   target-trial and MIMIC-to-PCORnet crosswalks
-outputs/                 generated aggregate results only; ignored by git
+outputs/                 generated results and local caches; ignored by git
 ```
 
 ## Data policy
 
-**Never commit patient-level MIMIC-IV, PSU, PCORnet, or derived analytic data.** This repository contains code, configuration templates, tests, documentation, and non-sensitive aggregate outputs only.
+**Never commit patient-level MIMIC-IV, PSU, PCORnet, or derived analytic data.** Patient-level CSV/Parquet files and `outputs/` are ignored by git. The repository should contain code, configuration templates, tests, documentation, and non-sensitive aggregate outputs only.
 
 ## Installation
 
-```bash
-conda create -n sepsis-deescalation python=3.11 -y
-conda activate sepsis-deescalation
-pip install -e .
-```
-
-For development/tests:
+Use a repository-local virtual environment:
 
 ```bash
-pip install -e '.[dev]'
+/usr/bin/python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
 pytest -q
 ```
 
 ## MIMIC-IV run
 
-Set the MIMIC-IV v3.1 root. Your current local path can be used directly:
+Set the MIMIC-IV v3.1 root if the configured local path is not already available:
 
 ```bash
 export MIMIC_SOURCE=/home/asadr/datasets/MIMIC/physionet.org/files/mimiciv/3.1
@@ -52,19 +49,47 @@ Run a validation/preflight first:
 python scripts/validate_mimic.py --config config/mimic.yaml
 ```
 
-Then run the analysis:
+### Fast development mode
+
+Use this after code changes. It keeps the same cohort and estimands but limits each bootstrap analysis to the configured development count (currently 100) and parallelizes replicates:
 
 ```bash
-python scripts/run_mimic.py --config config/mimic.yaml
+python scripts/run_mimic.py \
+  --config config/mimic.yaml \
+  --mode fast \
+  --jobs auto
 ```
 
-or:
+### Final publication mode
+
+The final mode uses the configured publication bootstrap counts (currently 1,000):
 
 ```bash
-make mimic
+python scripts/run_mimic.py \
+  --config config/mimic.yaml \
+  --mode final \
+  --jobs auto
 ```
 
-Each run creates a timestamped directory under `outputs/mimic/`, including a manifest, logs, cohort-flow counts, estimates, bootstrap CIs, balance diagnostics, sensitivity analyses, figure-ready CSVs, and a ZIP archive for review.
+`--jobs auto` uses up to eight worker processes. BLAS/OpenMP libraries are restricted to one thread inside each bootstrap worker to avoid CPU oversubscription.
+
+The optimized bootstrap engine uses a numeric design matrix instead of rebuilding Patsy formulas for every replicate. The six primary/secondary outcomes share one propensity-score fit per bootstrap replicate, and overlap/truncation weighting sensitivities also share one fit per replicate. Point-estimate definitions and target estimands are unchanged.
+
+### Inference-only resume mode
+
+Each complete run writes a local patient-level Parquet checkpoint under `outputs/cache/mimic/<analysis_version>/`. For later statistical development, primary/secondary, progressive, and weighting inference can be rerun without rereading MIMIC or rebuilding features:
+
+```bash
+python scripts/rerun_inference.py \
+  outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ \
+  --config config/mimic.yaml \
+  --mode fast \
+  --jobs auto
+```
+
+This is intentionally an inference-only checkpoint. It does not replace a complete final MIMIC run for source-dependent microbiology and missing-stop-time sensitivity analyses.
+
+Each run creates a timestamped directory under `outputs/mimic/`, including a manifest, logs, cohort-flow counts, estimates, bootstrap CIs, balance diagnostics, sensitivity analyses, figure-ready CSVs, runtime timings, and a ZIP archive for review.
 
 ## PSU / PCORnet external validation
 
@@ -80,9 +105,10 @@ Local configuration files are ignored by git. The PSU code is designed to suppor
 
 ## Reproducibility rules
 
-1. Run from a clean environment/process.
+1. Run from a clean `.venv` environment/process.
 2. Do not edit generated CSV estimates manually.
 3. Keep random seeds in configuration.
 4. Store a machine-readable run manifest with package versions, git commit, configuration hash, and timestamps.
 5. Freeze MIMIC definitions before changing the PSU implementation.
 6. Site-specific differences must be documented in `docs/psu_crosswalk.md`.
+7. Use `--mode fast` for development and `--mode final` only for publication-quality inference.
