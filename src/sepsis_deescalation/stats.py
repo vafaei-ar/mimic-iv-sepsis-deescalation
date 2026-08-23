@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from scipy.special import expit
 
 
 def weighted_mean(x, w) -> float:
@@ -65,19 +66,21 @@ def _build_formula(df: pd.DataFrame, treatment_col: str, variables: Iterable[str
 
 def fit_binomial_formula(formula: str, data: pd.DataFrame):
     model = smf.glm(formula=formula, data=data, family=sm.families.Binomial())
-    try:
-        fit = model.fit(maxiter=200, disp=0)
-        if not bool(getattr(fit, "converged", True)):
-            fit = model.fit_regularized(alpha=0.001, L1_wt=0.0, maxiter=200); return fit, "regularized_glm"
-        return fit, "glm"
-    except Exception as exc:
-        warnings.warn(f"Standard GLM failed ({exc}); using regularized binomial fit.")
-        return model.fit_regularized(alpha=0.001, L1_wt=0.0, maxiter=200), "regularized_glm"
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="overflow encountered in exp", category=RuntimeWarning)
+        try:
+            fit = model.fit(maxiter=200, disp=0)
+            if not bool(getattr(fit, "converged", True)):
+                fit = model.fit_regularized(alpha=0.001, L1_wt=0.0, maxiter=200); return fit, "regularized_glm"
+            return fit, "glm"
+        except Exception as exc:
+            warnings.warn(f"Standard GLM failed ({exc}); using regularized binomial fit.")
+            return model.fit_regularized(alpha=0.001, L1_wt=0.0, maxiter=200), "regularized_glm"
 
 
 def _safe_predict_training_data(fit) -> np.ndarray:
     exog = np.asarray(fit.model.exog, dtype=float); params = np.asarray(fit.params, dtype=float)
-    linpred = np.clip(exog @ params, -35, 35); return 1 / (1 + np.exp(-linpred))
+    linpred = np.clip(exog @ params, -35, 35); return expit(linpred)
 
 
 def fit_stabilized_iptw(cohort: pd.DataFrame, candidate_vars: Iterable[str], treatment_col: str = "A") -> tuple[pd.DataFrame, object, dict]:
