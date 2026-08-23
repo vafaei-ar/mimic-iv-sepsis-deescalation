@@ -16,6 +16,7 @@ dependencies = [
   "PyYAML>=6,<7",
   "duckdb>=1.0,<2",
   "pyarrow>=14,<22",
+  "threadpoolctl>=3,<4",
 ]
 
 [project.optional-dependencies]
