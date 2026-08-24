@@ -37,7 +37,6 @@ def _select_items(source: Path) -> tuple[pd.DataFrame, dict[str, set[int]]]:
     items = read_csv(source, "icu/d_items.csv.gz", usecols=["itemid", "label", "unitname"])
     items["label_lower"] = items["label"].fillna("").astype(str).str.lower().str.strip()
 
-    # True physiologic temperature measurements only. Exclude delta/site/APACHE/soft metadata rows.
     temp = items.loc[
         items["label_lower"].isin({
             "temperature fahrenheit",
@@ -47,12 +46,10 @@ def _select_items(source: Path) -> tuple[pd.DataFrame, dict[str, set[int]]]:
         })
     ].copy()
 
-    # Routine bedside FiO2. This intentionally excludes ECMO, CH, challenge and APACHE fields.
     fio2 = items.loc[
         items["label_lower"].str.fullmatch(r"inspired o2 fraction|fraction inspired oxygen", na=False)
     ].copy()
 
-    # Routine GCS components. Total score is reconstructed from complete component triplets.
     component_map = {
         "gcs - eye opening": "eye",
         "gcs - verbal response": "verbal",
@@ -136,7 +133,6 @@ def _repair_gcs(d: pd.DataFrame, events: pd.DataFrame) -> dict:
         valid_parts.append(s)
     g = pd.concat(valid_parts, ignore_index=True) if valid_parts else g.iloc[0:0].copy()
 
-    # Collapse duplicate component rows at the same charttime, then require a complete triplet.
     p = (
         g.groupby(["stay_id", "charttime", "gcs_component"], as_index=False)["valuenum"]
         .max()
@@ -235,7 +231,6 @@ def main() -> None:
         "fio2": _repair_fio2(d, events),
     }
 
-    # GCS is a component of the current SOFA-like covariate; recompute all SOFA-like terms.
     d = add_sofa_like(d)
 
     old_w, _, _ = fit_stabilized_iptw(original, CANDIDATE_PS_VARS)
@@ -265,6 +260,11 @@ def main() -> None:
     ])
     comparison.to_csv(out / "point_estimate_comparison.csv", index=False)
     new_bal.to_csv(out / "balance_vital_corrected.csv", index=False)
+
+    # Save the repaired cohort with the repaired propensity-score weights, not
+    # the stale v5.7 SW_A/ps columns inherited from the original CSV.
+    for col in ["ps_den", "ps_num", "SW_A"]:
+        d[col] = new_w[col].to_numpy()
     d.to_csv(out / "analysis_cohort_vital_corrected.csv", index=False)
     (out / "vital_repair_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
