@@ -14,6 +14,10 @@ from .stats import prepare_ps_covariates, risks
 
 def _fit_weights(df: pd.DataFrame, variables: Sequence[str], force_ridge: bool) -> tuple[pd.DataFrame, str, float]:
     d, ps_vars, _ = prepare_ps_covariates(df, variables)
+    # Consolidate the prepared frame before adding benchmark-only columns. The
+    # PS preparation intentionally adds many standardized columns one by one and
+    # can leave pandas with a highly fragmented internal block layout.
+    d = d.copy()
     y = pd.to_numeric(d["A"], errors="coerce").to_numpy(dtype=float)
     x = d[ps_vars].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
     x = np.column_stack([np.ones(len(d), dtype=float), x])
@@ -39,8 +43,17 @@ def _fit_weights(df: pd.DataFrame, variables: Sequence[str], force_ridge: bool) 
     params = np.asarray(fit.params, dtype=float)
     pden = np.clip(expit(np.clip(x @ params, -35.0, 35.0)), 0.001, 0.999)
     pnum = float(np.clip(np.mean(y), 0.001, 0.999))
-    d["ps_den_bench"] = pden
-    d["SW_bench"] = np.where(y == 1, pnum / pden, (1.0 - pnum) / (1.0 - pden))
+    weights = np.where(y == 1, pnum / pden, (1.0 - pnum) / (1.0 - pden))
+    d = pd.concat(
+        [
+            d,
+            pd.DataFrame(
+                {"ps_den_bench": pden, "SW_bench": weights},
+                index=d.index,
+            ),
+        ],
+        axis=1,
+    )
     return d, method, elapsed
 
 
