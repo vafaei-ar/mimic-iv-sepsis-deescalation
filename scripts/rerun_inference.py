@@ -32,12 +32,36 @@ def main() -> None:
     parser.add_argument("--config", default="config/mimic.yaml")
     parser.add_argument("--mode", choices=["fast", "final"], default="fast")
     parser.add_argument("--jobs", default="auto")
+    parser.add_argument(
+        "--cohort-path",
+        type=Path,
+        default=None,
+        help="Optional patient-level cohort CSV/Parquet to use instead of the run's default cached cohort.",
+    )
+    parser.add_argument(
+        "--label",
+        default=None,
+        help="Optional label included in the inference-rerun directory name, e.g. vital_corrected.",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     csv_path = args.run_dir / "analysis_cohort_weighted.csv"
-    parquet_path = Path(cfg.get("execution", {}).get("cache_root", "outputs/cache/mimic")) / str(cfg.get("analysis_version", "unknown")) / "analysis_cohort_weighted.parquet"
-    if parquet_path.exists():
+    parquet_path = (
+        Path(cfg.get("execution", {}).get("cache_root", "outputs/cache/mimic"))
+        / str(cfg.get("analysis_version", "unknown"))
+        / "analysis_cohort_weighted.parquet"
+    )
+
+    if args.cohort_path is not None:
+        source = args.cohort_path.expanduser().resolve()
+        if not source.exists():
+            raise FileNotFoundError(source)
+        if source.suffix.lower() == ".parquet":
+            cohort = pd.read_parquet(source)
+        else:
+            cohort = pd.read_csv(source, low_memory=False)
+    elif parquet_path.exists():
         cohort = pd.read_parquet(parquet_path)
         source = parquet_path
     elif csv_path.exists():
@@ -46,11 +70,11 @@ def main() -> None:
     else:
         raise FileNotFoundError(f"No cached Parquet or {csv_path} found")
 
-    # Configure global runtime settings without altering cohort construction.
     import sepsis_deescalation.mimic_pipeline as mimic_pipeline
 
     jobs = install_runtime_optimizations(mimic_pipeline, jobs=args.jobs, mode=args.mode)
-    rerun_dir = args.run_dir / "inference_reruns" / f"{args.mode}_{_timestamp()}"
+    label = "" if not args.label else "_" + "".join(c if c.isalnum() or c in "-_" else "_" for c in args.label)
+    rerun_dir = args.run_dir / "inference_reruns" / f"{args.mode}{label}_{_timestamp()}"
     tables = rerun_dir / "tables"
     diagnostics = rerun_dir / "diagnostics"
     logs = rerun_dir / "logs"
@@ -58,8 +82,6 @@ def main() -> None:
         p.mkdir(parents=True, exist_ok=True)
     paths = SimpleNamespace(run_dir=rerun_dir, tables=tables, diagnostics=diagnostics, logs=logs)
 
-    # Refit the point-estimate primary PS so this command does not depend on the
-    # saved SW_A column being present or current.
     cohort_w, _, _ = fit_stabilized_iptw(cohort, CANDIDATE_PS_VARS)
     primary = primary_and_secondary_results_fast(cohort_w, cfg, paths)["outcomes"]
     primary.to_csv(tables / "primary_secondary_outcomes.csv", index=False)
@@ -69,12 +91,17 @@ def main() -> None:
 
     weighting_reps = int(cfg.get("bootstrap", {}).get("weighting_sensitivity_reps", 1000))
     if args.mode == "fast":
-        weighting_reps = min(weighting_reps, int(cfg.get("execution", {}).get("fast_bootstrap_reps", 100)))
+        weighting_reps = min(
+            weighting_reps,
+            int(cfg.get("execution", {}).get("fast_bootstrap_reps", 100)),
+        )
     run_final_weighting_sensitivities(
         cohort,
         CANDIDATE_PS_VARS,
         out_dir=rerun_dir / "final_weighting",
-        truncation_percentiles=cfg.get("weighting", {}).get("truncation_percentiles", [[1.0, 99.0], [2.5, 97.5]]),
+        truncation_percentiles=cfg.get("weighting", {}).get(
+            "truncation_percentiles", [[1.0, 99.0], [2.5, 97.5]]
+        ),
         reps=weighting_reps,
         seed=int(cfg.get("bootstrap", {}).get("seed", 20260426)) + 700,
         jobs=jobs,
@@ -87,6 +114,7 @@ def main() -> None:
         encoding="utf-8",
     )
     print(f"Inference-only rerun completed: {rerun_dir}")
+    print(f"Cohort source: {source}")
     print(f"Mode: {args.mode}; bootstrap jobs: {jobs}")
 
 
