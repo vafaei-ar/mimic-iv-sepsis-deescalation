@@ -57,8 +57,6 @@ def _temperature_c(value: pd.Series, label: pd.Series) -> pd.Series:
     lab = label.fillna("").astype(str).str.lower()
     is_f = lab.str.contains("fahrenheit|deg f|°f", regex=True, na=False)
     is_c = lab.str.contains("celsius|deg c|°c", regex=True, na=False)
-    # For generic temperature labels, values >60 are Fahrenheit in MIMIC; lower
-    # values are Celsius. Explicit label information takes precedence.
     generic_f = (~is_f & ~is_c) & (v > 60)
     out = v.copy()
     out.loc[is_f | generic_f] = (v.loc[is_f | generic_f] - 32.0) * 5.0 / 9.0
@@ -113,7 +111,6 @@ def main() -> None:
     ], ignore_index=True).drop_duplicates(["itemid", "domain"])
     selected.to_csv(out / "selected_d_items.csv", index=False)
 
-    item_to_domain = selected.groupby("itemid")["domain"].apply(list).to_dict()
     wanted_itemids = set(int(x) for x in selected["itemid"].dropna().astype(int))
     wanted_stays = set(int(x) for x in cohort["stay_id"].dropna().astype(int))
 
@@ -134,7 +131,6 @@ def main() -> None:
         sub = events.loc[events["domain"] == domain].copy()
         _summarize_items(sub).to_csv(out / f"{domain}_item_summary.csv", index=False)
 
-    # Temperature unit audit and corrected patient-level aggregate comparison.
     temp = events.loc[events["domain"] == "temperature"].copy()
     temp["temperature_c"] = _temperature_c(temp["valuenum"], temp["label"])
     temp["plausible_c"] = temp["temperature_c"].between(30.0, 45.0, inclusive="both")
@@ -150,10 +146,8 @@ def main() -> None:
     )
     comp["corrected_temp_max_c"] = comp["stay_id"].map(corrected_max_c)
     comp["abs_difference_c"] = (comp["corrected_temp_max_c"] - comp["current_temp_max_as_c"]).abs()
-    # Patient-level comparison is intentionally local and remains under outputs/.
     comp.to_csv(out / "temperature_patient_comparison.csv", index=False)
 
-    # FiO2 normalization audit. This does not alter the production feature yet.
     fio2 = events.loc[events["domain"] == "fio2"].copy()
     fio2["fio2_fraction"] = _fio2_fraction(fio2["valuenum"])
     fio2["plausible_fraction"] = fio2["fio2_fraction"].between(0.20, 1.0, inclusive="both")
@@ -169,9 +163,6 @@ def main() -> None:
         plausible_fraction=("plausible_fraction", "mean"),
     ).reset_index().sort_values("n", ascending=False).to_csv(out / "fio2_normalization_summary.csv", index=False)
 
-    # GCS coverage audit. Total-score and component labels are kept separate so
-    # we can decide whether the current feature should use a total score, a sum
-    # of components, or be removed from the harmonized model.
     gcs = events.loc[events["domain"] == "gcs"].copy()
     gcs["is_total_label"] = gcs["label"].fillna("").str.lower().str.contains(r"total|gcs total|glasgow coma scale total", regex=True, na=False)
     gcs["is_component_label"] = gcs["label"].fillna("").str.lower().str.contains(r"eye|verbal|motor", regex=True, na=False)
