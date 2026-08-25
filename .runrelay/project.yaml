@@ -202,3 +202,21 @@ tasks:
       - outputs/psu_culture_result_encoding/latest/culture_result_coverage.csv
       - outputs/psu_culture_result_encoding/latest/culture_metadata_patterns.csv
       - outputs/psu_culture_result_encoding/latest/result_pattern_followup_concordance.csv
+
+  psu_culture_linkage_strictness:
+    description: Compare increasingly strict aggregate-only PSU culture-to-organism/susceptibility linkage rules to explain prior count discrepancies and identify a defensible positivity signal; identifiers remain internal only.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_culture_linkage_strictness.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_culture_linkage_strictness/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_culture_linkage_strictness/latest/summary.json
+      - outputs/psu_culture_linkage_strictness/latest/linkage_rule_counts.csv
+      - outputs/psu_culture_linkage_strictness/latest/linkage_rule_totals.csv
+      - outputs/psu_culture_linkage_strictness/latest/linkage_field_completeness.csv
