@@ -56,3 +56,22 @@ tasks:
       - outputs/publication_freeze/latest/final_weighting_point_estimates.csv
       - outputs/publication_freeze/latest/final_weighting_bootstrap_ci.csv
       - outputs/publication_freeze/latest/final_weighting_bootstrap_diagnostics.csv
+
+  psu_readonly_data_audit:
+    description: Read only local PSU/PCORnet file metadata and local analysis-code references to identify harmonizable sepsis sources; export aggregate metadata only, never row-level patient data.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_pcornet_data.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_pcornet_audit/latest
+    approval: manual
+    timeout_minutes: 20
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_pcornet_audit/latest/summary.json
+      - outputs/psu_pcornet_audit/latest/file_inventory.csv
+      - outputs/psu_pcornet_audit/latest/parquet_schema_summary.csv
+      - outputs/psu_pcornet_audit/latest/candidate_sources.csv
+      - outputs/psu_pcornet_audit/latest/code_reference_summary.json
