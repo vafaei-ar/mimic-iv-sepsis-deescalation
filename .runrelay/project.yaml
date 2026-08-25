@@ -145,3 +145,22 @@ tasks:
       - outputs/psu_existing_python_logic/latest/python_inventory.csv
       - outputs/psu_existing_python_logic/latest/relevant_code_evidence.csv
       - outputs/psu_existing_python_logic/latest/inferred_pipeline_map.json
+
+  psu_microbiology_semantic_audit:
+    description: Build an aggregate-only PSU clinical-culture test map and result-semantic audit to support the day-3 no-positive-culture phenotype; never export patient rows, identifiers, or raw result text.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_microbiology_semantics.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_microbiology_semantics/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_microbiology_semantics/latest/summary.json
+      - outputs/psu_microbiology_semantics/latest/candidate_culture_tests.csv
+      - outputs/psu_microbiology_semantics/latest/result_semantics.csv
+      - outputs/psu_microbiology_semantics/latest/timing_coverage.csv
+      - outputs/psu_microbiology_semantics/latest/specimen_source_counts.csv
