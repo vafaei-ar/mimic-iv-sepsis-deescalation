@@ -220,3 +220,21 @@ tasks:
       - outputs/psu_culture_linkage_strictness/latest/linkage_rule_counts.csv
       - outputs/psu_culture_linkage_strictness/latest/linkage_rule_totals.csv
       - outputs/psu_culture_linkage_strictness/latest/linkage_field_completeness.csv
+
+  psu_culture_sibling_components:
+    description: Identify aggregate lab-component patterns surrounding PSU culture tests to locate where organism, susceptibility, Gram-stain, or other microbiology result information is encoded; identifiers and raw results remain local only.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_culture_sibling_components.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_culture_sibling_components/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_culture_sibling_components/latest/summary.json
+      - outputs/psu_culture_sibling_components/latest/sibling_class_counts.csv
+      - outputs/psu_culture_sibling_components/latest/top_microbiology_sibling_components.csv
+      - outputs/psu_culture_sibling_components/latest/sibling_result_qual_counts.csv
