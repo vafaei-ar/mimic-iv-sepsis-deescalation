@@ -127,3 +127,21 @@ tasks:
       - outputs/psu_anchor_micro_resolution/latest/candidate_path_inventory.csv
       - outputs/psu_anchor_micro_resolution/latest/microbiology_aggregate_counts.csv
       - outputs/psu_anchor_micro_resolution/latest/icu_observation_aggregate_counts.csv
+
+  psu_existing_python_logic_review:
+    description: Read and summarize existing Python analysis code under the PSU Hwang_Bonavia sepsis directory to recover prior cohort, ICU, antibiotic, microbiology, SOFA, and timing logic; read source code only and never patient rows.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_existing_python_logic.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_existing_python_logic/latest
+    approval: manual
+    timeout_minutes: 30
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_existing_python_logic/latest/summary.json
+      - outputs/psu_existing_python_logic/latest/python_inventory.csv
+      - outputs/psu_existing_python_logic/latest/relevant_code_evidence.csv
+      - outputs/psu_existing_python_logic/latest/inferred_pipeline_map.json
