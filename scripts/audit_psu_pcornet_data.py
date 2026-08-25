@@ -30,32 +30,12 @@ CODE_FILES = {
 }
 
 CODE_KEYWORDS = [
-    "sepsis_encounter",
-    "prescribing",
-    "med_admin",
-    "rxnorm",
-    "encounterid",
-    "patid",
-    "admit_date",
-    "admit_time",
-    "discharge_date",
-    "discharge_time",
-    "lab_result_cm",
-    "specimen",
-    "result_date",
-    "result_time",
-    "vasopressor",
-    "icu",
+    "sepsis_encounter", "prescribing", "med_admin", "rxnorm", "encounterid",
+    "patid", "admit_date", "admit_time", "discharge_date", "discharge_time",
+    "lab_result_cm", "specimen", "result_date", "result_time", "vasopressor", "icu",
 ]
 
-IDENTIFIER_LIKE = {
-    "patid",
-    "patient_id",
-    "encounterid",
-    "encounter_id",
-    "providerid",
-    "provider_id",
-}
+IDENTIFIER_LIKE = {"patid", "patient_id", "encounterid", "encounter_id", "providerid", "provider_id"}
 
 
 def _safe_root(root: Path) -> Path:
@@ -65,13 +45,26 @@ def _safe_root(root: Path) -> Path:
     return root
 
 
+def _safe_exists(path: Path) -> tuple[bool, str | None]:
+    try:
+        return path.exists(), None
+    except OSError as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def _safe_size(path: Path) -> tuple[int | None, str | None]:
+    try:
+        return int(path.stat().st_size), None
+    except OSError as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def _parquet_metadata(path: Path, logical_name: str) -> tuple[dict, list[dict]]:
     pf = pq.ParquetFile(path)
     metadata = pf.metadata
     schema = pf.schema_arrow
     total_rows = int(metadata.num_rows)
     rows: list[dict] = []
-
     for idx, field in enumerate(schema):
         null_count = 0
         null_known = True
@@ -83,34 +76,31 @@ def _parquet_metadata(path: Path, logical_name: str) -> tuple[dict, list[dict]]:
                 break
             null_count += int(stats.null_count)
         name_lower = field.name.lower()
-        rows.append(
-            {
-                "logical_table": logical_name,
-                "file": str(path.relative_to(EXPECTED_ROOT)),
-                "row_count": total_rows,
-                "column": field.name,
-                "dtype": str(field.type),
-                "identifier_like": name_lower in IDENTIFIER_LIKE or name_lower.endswith("_id"),
-                "null_count_metadata": null_count if null_known else None,
-                "null_fraction_metadata": (null_count / total_rows) if null_known and total_rows else None,
-            }
-        )
-
-    table_summary = {
+        rows.append({
+            "logical_table": logical_name,
+            "file": str(path.relative_to(EXPECTED_ROOT)),
+            "row_count": total_rows,
+            "column": field.name,
+            "dtype": str(field.type),
+            "identifier_like": name_lower in IDENTIFIER_LIKE or name_lower.endswith("_id"),
+            "null_count_metadata": null_count if null_known else None,
+            "null_fraction_metadata": (null_count / total_rows) if null_known and total_rows else None,
+        })
+    return {
         "logical_table": logical_name,
         "file": str(path.relative_to(EXPECTED_ROOT)),
         "row_count": total_rows,
         "n_columns": len(schema),
         "n_row_groups": int(metadata.num_row_groups),
         "columns": [field.name for field in schema],
-    }
-    return table_summary, rows
+        "read_status": "ok",
+    }, rows
 
 
 def _scan_code(path: Path, logical_name: str) -> dict:
     text = path.read_text(encoding="utf-8", errors="replace")
     lower = text.lower()
-    hits = {keyword: lower.count(keyword.lower()) for keyword in CODE_KEYWORDS if keyword.lower() in lower}
+    hits = {k: lower.count(k.lower()) for k in CODE_KEYWORDS if k.lower() in lower}
     return {
         "logical_file": logical_name,
         "file": str(path.relative_to(EXPECTED_ROOT)),
@@ -121,9 +111,7 @@ def _scan_code(path: Path, logical_name: str) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Read-only metadata audit of local PSU/PCORnet sepsis data. No row-level data are exported."
-    )
+    parser = argparse.ArgumentParser(description="Read-only metadata audit of local PSU/PCORnet sepsis data. No row-level data are exported.")
     parser.add_argument("data_root", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/psu_pcornet_audit/latest"))
     args = parser.parse_args()
@@ -135,39 +123,49 @@ def main() -> None:
     inventory_rows: list[dict] = []
     table_summaries: list[dict] = []
     schema_rows: list[dict] = []
+    access_errors: list[dict] = []
 
     for logical_name, rel in PARQUET_CANDIDATES.items():
         path = root / rel
-        inventory_rows.append(
-            {
-                "kind": "parquet",
-                "logical_name": logical_name,
-                "relative_path": rel,
-                "exists": path.exists(),
-                "size_bytes": path.stat().st_size if path.exists() else None,
-            }
-        )
-        if path.exists():
-            summary, rows = _parquet_metadata(path, logical_name)
-            table_summaries.append(summary)
-            schema_rows.extend(rows)
+        exists, exists_error = _safe_exists(path)
+        size, size_error = _safe_size(path) if exists else (None, exists_error)
+        row = {
+            "kind": "parquet", "logical_name": logical_name, "relative_path": rel,
+            "exists": exists, "size_bytes": size, "read_status": "not_attempted", "access_error": size_error,
+        }
+        if exists:
+            try:
+                summary, rows = _parquet_metadata(path, logical_name)
+                table_summaries.append(summary)
+                schema_rows.extend(rows)
+                row["read_status"] = "ok"
+            except (OSError, IOError, ValueError) as exc:
+                err = f"{type(exc).__name__}: {exc}"
+                row["read_status"] = "access_error"
+                row["access_error"] = err
+                access_errors.append({"logical_name": logical_name, "relative_path": rel, "error": err})
+        inventory_rows.append(row)
 
     code_summaries: list[dict] = []
     for logical_name, rel in CODE_FILES.items():
         path = root / rel
-        inventory_rows.append(
-            {
-                "kind": "code",
-                "logical_name": logical_name,
-                "relative_path": rel,
-                "exists": path.exists(),
-                "size_bytes": path.stat().st_size if path.exists() else None,
-            }
-        )
-        if path.exists():
-            code_summaries.append(_scan_code(path, logical_name))
+        exists, exists_error = _safe_exists(path)
+        size, size_error = _safe_size(path) if exists else (None, exists_error)
+        row = {
+            "kind": "code", "logical_name": logical_name, "relative_path": rel,
+            "exists": exists, "size_bytes": size, "read_status": "not_attempted", "access_error": size_error,
+        }
+        if exists:
+            try:
+                code_summaries.append(_scan_code(path, logical_name))
+                row["read_status"] = "ok"
+            except (OSError, IOError, ValueError) as exc:
+                err = f"{type(exc).__name__}: {exc}"
+                row["read_status"] = "access_error"
+                row["access_error"] = err
+                access_errors.append({"logical_name": logical_name, "relative_path": rel, "error": err})
+        inventory_rows.append(row)
 
-    # Presence-only checks for additional local files that may matter later.
     presence_only = [
         "PCORnet/sepsis_procedures.sas7bdat",
         "PCORnet/Full/lab_result_cm.sas7bdat",
@@ -179,76 +177,40 @@ def main() -> None:
     ]
     for rel in presence_only:
         path = root / rel
-        inventory_rows.append(
-            {
-                "kind": "presence_only",
-                "logical_name": Path(rel).stem,
-                "relative_path": rel,
-                "exists": path.exists(),
-                "size_bytes": path.stat().st_size if path.exists() else None,
-            }
-        )
+        exists, exists_error = _safe_exists(path)
+        size, size_error = _safe_size(path) if exists else (None, exists_error)
+        inventory_rows.append({
+            "kind": "presence_only", "logical_name": Path(rel).stem, "relative_path": rel,
+            "exists": exists, "size_bytes": size, "read_status": "presence_only", "access_error": size_error,
+        })
 
     pd.DataFrame(inventory_rows).to_csv(out / "file_inventory.csv", index=False)
     pd.DataFrame(schema_rows).to_csv(out / "parquet_schema_summary.csv", index=False)
     (out / "code_reference_summary.json").write_text(json.dumps(code_summaries, indent=2), encoding="utf-8")
 
     columns_by_table = {x["logical_table"]: {c.lower() for c in x["columns"]} for x in table_summaries}
-
     def has(table: str, *tokens: str) -> bool:
         cols = columns_by_table.get(table, set())
         return all(any(token in col for col in cols) for token in tokens)
 
     candidate_rows = [
-        {
-            "domain": "encounter / landmark timing",
-            "preferred_local_source": "sepsis_encounter",
-            "available": "sepsis_encounter" in columns_by_table,
-            "mapping_signal": "encounter-like date/time columns present" if has("sepsis_encounter", "admit") else "needs manual mapping audit",
-        },
-        {
-            "domain": "antibiotic orders",
-            "preferred_local_source": "prescribing",
-            "available": "prescribing" in columns_by_table,
-            "mapping_signal": "Rx/order table available; route/timing columns require audit",
-        },
-        {
-            "domain": "antibiotic administrations",
-            "preferred_local_source": "med_admin",
-            "available": "med_admin" in columns_by_table,
-            "mapping_signal": "administration table available for sensitivity/reclassification",
-        },
-        {
-            "domain": "mortality",
-            "preferred_local_source": "death",
-            "available": "death" in columns_by_table,
-            "mapping_signal": "death table available",
-        },
-        {
-            "domain": "vitals",
-            "preferred_local_source": "sepsis_vital / obs_clin",
-            "available": ("sepsis_vital" in columns_by_table) or ("obs_clin" in columns_by_table),
-            "mapping_signal": "vital/clinical observation tables available",
-        },
-        {
-            "domain": "laboratory covariates",
-            "preferred_local_source": "lab_reduced / LAB_RESULT_CM",
-            "available": "lab_reduced" in columns_by_table or (root / "PCORnet/Full/lab_result_cm.sas7bdat").exists(),
-            "mapping_signal": "lab source available; specimen/result timing must be verified",
-        },
-        {
-            "domain": "microbiology culture result availability",
-            "preferred_local_source": "LAB_RESULT_CM or local microbiology extension",
-            "available": (root / "PCORnet/Full/lab_result_cm.sas7bdat").exists(),
-            "mapping_signal": "presence confirmed only; organism positivity and true result-availability timestamps remain unresolved",
-        },
+        {"domain": "encounter / landmark timing", "preferred_local_source": "sepsis_encounter", "available": "sepsis_encounter" in columns_by_table, "mapping_signal": "encounter-like date/time columns present" if has("sepsis_encounter", "admit") else "needs manual mapping audit"},
+        {"domain": "antibiotic orders", "preferred_local_source": "prescribing", "available": "prescribing" in columns_by_table, "mapping_signal": "Rx/order table available; route/timing columns require audit"},
+        {"domain": "antibiotic administrations", "preferred_local_source": "med_admin", "available": "med_admin" in columns_by_table, "mapping_signal": "administration table available for sensitivity/reclassification"},
+        {"domain": "mortality", "preferred_local_source": "death", "available": "death" in columns_by_table, "mapping_signal": "death table available"},
+        {"domain": "vitals", "preferred_local_source": "sepsis_vital / obs_clin", "available": ("sepsis_vital" in columns_by_table) or ("obs_clin" in columns_by_table), "mapping_signal": "vital/clinical observation tables available"},
+        {"domain": "laboratory covariates", "preferred_local_source": "lab_reduced / LAB_RESULT_CM", "available": "lab_reduced" in columns_by_table or _safe_exists(root / "PCORnet/Full/lab_result_cm.sas7bdat")[0], "mapping_signal": "lab source available; specimen/result timing must be verified"},
+        {"domain": "microbiology culture result availability", "preferred_local_source": "LAB_RESULT_CM or local microbiology extension", "available": _safe_exists(root / "PCORnet/Full/lab_result_cm.sas7bdat")[0], "mapping_signal": "presence confirmed only; organism positivity and true result-availability timestamps remain unresolved"},
     ]
     pd.DataFrame(candidate_rows).to_csv(out / "candidate_sources.csv", index=False)
 
     summary = {
         "data_root": str(root),
         "privacy_mode": "metadata_only_no_row_level_export",
-        "n_parquet_candidates_found": sum(1 for x in table_summaries),
+        "n_parquet_candidates_found": sum(1 for r in inventory_rows if r["kind"] == "parquet" and r["exists"]),
+        "n_parquet_candidates_readable": len(table_summaries),
+        "n_access_errors": len(access_errors),
+        "access_errors": access_errors,
         "tables": table_summaries,
         "code_files_scanned": code_summaries,
         "publication_replication_status": {
@@ -260,11 +222,12 @@ def main() -> None:
         "next_step": "Use this aggregate audit to freeze a PSU-to-MIMIC field crosswalk before any patient-level cohort construction.",
     }
     (out / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-
     print(json.dumps({
-        "status": "ok",
+        "status": "ok_with_access_errors" if access_errors else "ok",
         "privacy_mode": summary["privacy_mode"],
         "n_parquet_candidates_found": summary["n_parquet_candidates_found"],
+        "n_parquet_candidates_readable": summary["n_parquet_candidates_readable"],
+        "n_access_errors": summary["n_access_errors"],
         "output_dir": str(out),
     }, indent=2))
 
