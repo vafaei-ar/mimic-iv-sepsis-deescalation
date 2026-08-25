@@ -90,3 +90,22 @@ tasks:
     working_directory: .
     artifacts:
       - outputs/psu_mount_diagnostic/latest/summary.json
+
+  psu_target_trial_crosswalk:
+    description: Build an aggregate-only PSU-to-MIMIC field crosswalk for ICU timing, antibiotic source, and microbiology result availability before any external cohort construction.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_target_trial_crosswalk.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_target_trial_crosswalk/latest
+    approval: manual
+    timeout_minutes: 30
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_target_trial_crosswalk/latest/summary.json
+      - outputs/psu_target_trial_crosswalk/latest/timestamp_crosswalk.csv
+      - outputs/psu_target_trial_crosswalk/latest/aggregate_category_counts.csv
+      - outputs/psu_target_trial_crosswalk/latest/local_code_logic_summary.json
+      - outputs/psu_target_trial_crosswalk/latest/microbiology_mapping_summary.json
