@@ -274,3 +274,21 @@ tasks:
       - outputs/psu_culture_panel_prefix/latest/panel_prefix_class_counts.csv
       - outputs/psu_culture_panel_prefix/latest/panel_prefix_top_components.csv
       - outputs/psu_culture_panel_prefix/latest/culture_panel_prefix_counts.csv
+
+  psu_culture_specimen_timestamp_linkage:
+    description: Test exact specimen date/time and lab-order-date linkage between PSU culture parent rows and organism/susceptibility/Gram-stain components; export aggregate counts only with identifiers kept local.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_culture_specimen_timestamp_linkage.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_culture_specimen_timestamp_linkage/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_culture_specimen_timestamp_linkage/latest/summary.json
+      - outputs/psu_culture_specimen_timestamp_linkage/latest/timestamp_linkage_counts.csv
+      - outputs/psu_culture_specimen_timestamp_linkage/latest/timestamp_linkage_totals.csv
+      - outputs/psu_culture_specimen_timestamp_linkage/latest/culture_timestamp_completeness.csv
