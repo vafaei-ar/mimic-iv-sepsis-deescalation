@@ -183,3 +183,22 @@ tasks:
       - outputs/psu_culture_positivity_linkage/latest/culture_result_qual_counts.csv
       - outputs/psu_culture_positivity_linkage/latest/followup_row_type_counts.csv
       - outputs/psu_culture_positivity_linkage/latest/culture_loinc_linkage_summary.csv
+
+  psu_culture_result_encoding:
+    description: Inspect PSU culture RAW_RESULT semantics locally and export only predefined aggregate pattern counts, metadata patterns, and concordance with organism/susceptibility follow-up signals; never export raw result text, identifiers, or patient rows.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_culture_result_encoding.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_culture_result_encoding/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_culture_result_encoding/latest/summary.json
+      - outputs/psu_culture_result_encoding/latest/result_pattern_by_culture_group.csv
+      - outputs/psu_culture_result_encoding/latest/culture_result_coverage.csv
+      - outputs/psu_culture_result_encoding/latest/culture_metadata_patterns.csv
+      - outputs/psu_culture_result_encoding/latest/result_pattern_followup_concordance.csv
