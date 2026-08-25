@@ -40,7 +40,10 @@ def main() -> None:
 
     con = duckdb.connect()
     con.execute("PRAGMA threads=4")
-    con.execute("CREATE VIEW lab AS SELECT * FROM read_parquet(?)", [str(lab)])
+    # DuckDB does not allow prepared parameters inside CREATE VIEW table functions.
+    # Quote the already validated local path as a SQL string literal instead.
+    lab_sql = str(lab).replace("'", "''")
+    con.execute(f"CREATE VIEW lab AS SELECT * FROM read_parquet('{lab_sql}')")
 
     # Candidate culture-like tests. Keep standardized/name fields only, never result free text.
     candidate_where = r"""
