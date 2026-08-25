@@ -292,3 +292,23 @@ tasks:
       - outputs/psu_culture_specimen_timestamp_linkage/latest/timestamp_linkage_counts.csv
       - outputs/psu_culture_specimen_timestamp_linkage/latest/timestamp_linkage_totals.csv
       - outputs/psu_culture_specimen_timestamp_linkage/latest/culture_timestamp_completeness.csv
+
+  psu_antibiotic_source_mapping:
+    description: Compare frozen MIMIC broad-spectrum antibiotic text/IV rules against PSU PRESCRIBING and MED_ADMIN and summarize prior local RxNorm mapping evidence; aggregate outputs only.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_antibiotic_source_mapping.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_antibiotic_source_mapping/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_antibiotic_source_mapping/latest/summary.json
+      - outputs/psu_antibiotic_source_mapping/latest/source_field_map.csv
+      - outputs/psu_antibiotic_source_mapping/latest/source_mapping_summary.csv
+      - outputs/psu_antibiotic_source_mapping/latest/broad_agent_counts.csv
+      - outputs/psu_antibiotic_source_mapping/latest/encounter_source_overlap.csv
+      - outputs/psu_antibiotic_source_mapping/latest/old_antibiotic_code_evidence.json
