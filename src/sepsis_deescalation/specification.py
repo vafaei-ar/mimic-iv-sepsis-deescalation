@@ -37,18 +37,33 @@ BINARY_VARS = [
     "steroid_any_pre72", "hydrocortisone_any_pre72",
 ]
 
-# In the v5.6 real-data audit these pairs were exact duplicates across all 9,589
-# analytic admissions. Removing the second member of each pair changes no measured
-# confounding information and avoids avoidable rank deficiency in the PS design.
-# They remain in CONTINUOUS_VARS/BINARY_VARS for descriptive reporting.
+# Exact duplicates found in the real-data audit. The second member of each pair
+# remains available descriptively but is excluded from the propensity model.
 PS_EXCLUDED_EXACT_DUPLICATES = {
     "clinical_micro_records_pre72": "duplicates micro_records_pre72 in MIMIC v5.6 audit",
     "white_blood_cells_missing_pre72": "duplicates creatinine_missing_pre72 in MIMIC v5.6 audit",
 }
 
+# The v5.7 vital-item audit showed that GCS must be reconstructed from component
+# triplets and that routine FiO2 is incompletely observed. In the prespecified
+# ablation diagnostic, including either variable directly in the full PS worsened
+# overlap/balance and weight stability, while excluding both gave the preferred
+# corrected specification. They remain in the analytic dataset and may contribute
+# to descriptive/severity summaries and sensitivity analyses, but are not direct
+# primary PS terms.
+PS_EXCLUDED_VITAL_DIRECT_TERMS = {
+    "gcs_total_48_72h": "reconstructed from components; direct inclusion worsened PS stability in vital ablation",
+    "fio2_48_72h": "incomplete routine measurement; direct inclusion worsened PS stability in vital ablation",
+}
+
+PS_EXCLUDED = {
+    **PS_EXCLUDED_EXACT_DUPLICATES,
+    **PS_EXCLUDED_VITAL_DIRECT_TERMS,
+}
+
 CANDIDATE_PS_VARS = [
     v for v in (CONTINUOUS_VARS + BINARY_VARS)
-    if v not in PS_EXCLUDED_EXACT_DUPLICATES
+    if v not in PS_EXCLUDED
 ]
 
 _BASE = ["age", "sex_male", "race_white", "comorb", "heart_failure", "chronic_kidney", "hours_admit_to_icu", "micu", "sicu", "cardiac_icu", "neuro_icu"]
