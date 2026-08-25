@@ -109,3 +109,21 @@ tasks:
       - outputs/psu_target_trial_crosswalk/latest/aggregate_category_counts.csv
       - outputs/psu_target_trial_crosswalk/latest/local_code_logic_summary.json
       - outputs/psu_target_trial_crosswalk/latest/microbiology_mapping_summary.json
+
+  psu_anchor_micro_resolution:
+    description: Resolve the two remaining PSU replication blockers using aggregate-only searches for ICU/ADT timing signals and microbiology/culture mappings; never export patient rows, identifiers, or result free text.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_anchor_micro_resolution.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_anchor_micro_resolution/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_anchor_micro_resolution/latest/summary.json
+      - outputs/psu_anchor_micro_resolution/latest/candidate_path_inventory.csv
+      - outputs/psu_anchor_micro_resolution/latest/microbiology_aggregate_counts.csv
+      - outputs/psu_anchor_micro_resolution/latest/icu_observation_aggregate_counts.csv
