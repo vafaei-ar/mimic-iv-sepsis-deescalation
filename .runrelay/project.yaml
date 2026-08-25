@@ -1,0 +1,58 @@
+schema_version: 1
+
+project:
+  id: mimic-iv-sepsis-deescalation
+  repo: vafaei-ar/mimic-iv-sepsis-deescalation
+  visibility: public
+
+execution:
+  profile: safe
+  approval_default: manual
+  machine_binding: fixed
+  machine_id: pshjl4vf24
+  runner_source: runrelay_control_repo
+  exact_commit: true
+  allow_arbitrary_commands: false
+
+security:
+  project_only_filesystem: true
+  network_access: true
+  inherit_environment: false
+  destructive_operations: false
+
+monitoring:
+  heartbeat_seconds: 60
+  telegram_include_log_tail: true
+  tmux_default: false
+
+tasks:
+  smoke_test:
+    description: Non-destructive RunRelay connectivity test for the MIMIC-IV sepsis de-escalation project.
+    command:
+      - python3
+      - -c
+      - "import os,platform; print('RUNRELAY_SMOKE_OK'); print('host='+platform.node()); print('cwd='+os.getcwd())"
+    approval: manual
+    timeout_minutes: 5
+    requires_gpu: false
+    working_directory: .
+
+  publication_freeze_summary:
+    description: Build a safe aggregate publication-freeze bundle from the completed final corrected MIMIC inference outputs without exposing row-level MIMIC-IV data.
+    command:
+      - .venv/bin/python
+      - scripts/build_publication_freeze.py
+      - outputs/mimic/mimic_iv_v5_7_final_20260820T003506Z
+      - --output-dir
+      - outputs/publication_freeze/latest
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_freeze/latest/summary.json
+      - outputs/publication_freeze/latest/primary_secondary_outcomes.csv
+      - outputs/publication_freeze/latest/progressive_adjustment.csv
+      - outputs/publication_freeze/latest/final_weighting_point_estimates.csv
+      - outputs/publication_freeze/latest/final_weighting_bootstrap_ci.csv
+      - outputs/publication_freeze/latest/final_weighting_bootstrap_diagnostics.csv
