@@ -75,3 +75,18 @@ tasks:
       - outputs/psu_pcornet_audit/latest/parquet_schema_summary.csv
       - outputs/psu_pcornet_audit/latest/candidate_sources.csv
       - outputs/psu_pcornet_audit/latest/code_reference_summary.json
+
+  psu_mount_diagnostic:
+    description: Diagnose PSU/PCORnet filesystem accessibility using metadata-only stat/open checks and mount metadata; never read or export patient-level file contents.
+    command:
+      - .venv/bin/python
+      - scripts/diagnose_psu_mount.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output
+      - outputs/psu_mount_diagnostic/latest/summary.json
+    approval: manual
+    timeout_minutes: 5
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_mount_diagnostic/latest/summary.json
