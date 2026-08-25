@@ -164,3 +164,22 @@ tasks:
       - outputs/psu_microbiology_semantics/latest/result_semantics.csv
       - outputs/psu_microbiology_semantics/latest/timing_coverage.csv
       - outputs/psu_microbiology_semantics/latest/specimen_source_counts.csv
+
+  psu_culture_positivity_linkage:
+    description: Use internal patient/encounter linkage to determine how PSU positive cultures are represented through organism and susceptibility follow-on rows; export aggregate counts only, never identifiers, patient rows, or raw result text.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_culture_positivity_linkage.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_culture_positivity_linkage/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_culture_positivity_linkage/latest/summary.json
+      - outputs/psu_culture_positivity_linkage/latest/positivity_mechanism_counts.csv
+      - outputs/psu_culture_positivity_linkage/latest/culture_result_qual_counts.csv
+      - outputs/psu_culture_positivity_linkage/latest/followup_row_type_counts.csv
+      - outputs/psu_culture_positivity_linkage/latest/culture_loinc_linkage_summary.csv
