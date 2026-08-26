@@ -368,3 +368,22 @@ tasks:
       - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_formulation_counts.csv
       - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_encounter_counts.csv
       - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_legacy_codes.csv
+
+  psu_modified_cohort_feasibility:
+    description: Quantify aggregate feasibility of the modified PSU hospital-clock external replication using the frozen systemic broad-spectrum PRESCRIBING proxy and strict/lenient 96-hour landmark bounds.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_modified_cohort_feasibility.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_modified_cohort_feasibility/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_modified_cohort_feasibility/latest/summary.json
+      - outputs/psu_modified_cohort_feasibility/latest/cohort_step_counts.csv
+      - outputs/psu_modified_cohort_feasibility/latest/prescribing_time_completeness.csv
+      - outputs/psu_modified_cohort_feasibility/latest/landmark_date_ambiguity.csv
+      - outputs/psu_modified_cohort_feasibility/latest/field_map.csv
