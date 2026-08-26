@@ -46,3 +46,22 @@ tasks:
       - outputs/psu_point_estimates/latest/covariate_balance.csv
       - outputs/psu_point_estimates/latest/ps_distribution.csv
       - outputs/psu_point_estimates/latest/weight_diagnostics.csv
+
+  psu_bootstrap_inference:
+    description: Run 1000 encounter-level nonparametric bootstrap replicates for frozen PSU treatment-effect inference, refitting the frozen PS per replicate and evaluating stabilized ATE IPTW, overlap weighting, and prespecified weight-truncation sensitivities; aggregate outputs only.
+    command:
+      - .venv/bin/python
+      - scripts/run_psu_bootstrap_inference.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_point_estimates/latest
+    approval: manual
+    timeout_minutes: 240
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_point_estimates/latest/effect_summary.json
+      - outputs/psu_point_estimates/latest/point_estimates.csv
+      - outputs/psu_point_estimates/latest/effect_weighting_diagnostics.csv
+      - outputs/psu_point_estimates/latest/bootstrap_ci.csv
+      - outputs/psu_point_estimates/latest/bootstrap_diagnostics.json
