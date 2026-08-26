@@ -519,3 +519,22 @@ tasks:
       - outputs/psu_medadmin_clock_semantics/latest/summary.json
       - outputs/psu_medadmin_clock_semantics/latest/time_encoding.csv
       - outputs/psu_medadmin_clock_semantics/latest/vasopressor_overlap_by_parser.csv
+
+  psu_ps_balance_diagnostic:
+    description: Build the frozen PSU modified-replication analysis covariates and run aggregate-only propensity-score overlap, weighting, missingness, and standardized-balance diagnostics without outcomes or treatment-effect estimation.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_ps_balance.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_ps_balance/latest
+    approval: manual
+    timeout_minutes: 120
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_ps_balance/latest/summary.json
+      - outputs/psu_ps_balance/latest/covariate_balance.csv
+      - outputs/psu_ps_balance/latest/ps_distribution.csv
+      - outputs/psu_ps_balance/latest/weight_diagnostics.csv
+      - outputs/psu_ps_balance/latest/missingness_by_exposure.csv
