@@ -502,3 +502,20 @@ tasks:
       - outputs/psu_final_covariate_freeze/latest/final_covariate_coverage.csv
       - outputs/psu_final_covariate_freeze/latest/diagnosis_definition_summary.csv
       - outputs/psu_final_covariate_freeze/latest/vasopressor_window_overlap.csv
+
+  psu_medadmin_clock_semantics:
+    description: Audit MED_ADMIN raw start/stop time encodings and compare timestamp parsers for vasopressor interval overlap before final covariate freeze.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_medadmin_clock_semantics.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_medadmin_clock_semantics/latest
+    approval: manual
+    timeout_minutes: 90
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_medadmin_clock_semantics/latest/summary.json
+      - outputs/psu_medadmin_clock_semantics/latest/time_encoding.csv
+      - outputs/psu_medadmin_clock_semantics/latest/vasopressor_overlap_by_parser.csv
