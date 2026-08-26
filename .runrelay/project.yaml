@@ -406,3 +406,22 @@ tasks:
       - outputs/psu_exposure_classification_feasibility/latest/med_admin_exposure_counts.csv
       - outputs/psu_exposure_classification_feasibility/latest/source_reclassification_matrix.csv
       - outputs/psu_exposure_classification_feasibility/latest/source_agreement_summary.csv
+
+  psu_covariate_outcome_feasibility:
+    description: Quantify aggregate PSU covariate, trajectory-variable, source-coverage, and outcome feasibility in the frozen strict modified 96-hour cohort before any propensity-score or treatment-effect modeling.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_covariate_outcome_feasibility.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_covariate_outcome_feasibility/latest
+    approval: manual
+    timeout_minutes: 90
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_covariate_outcome_feasibility/latest/summary.json
+      - outputs/psu_covariate_outcome_feasibility/latest/source_cohort_coverage.csv
+      - outputs/psu_covariate_outcome_feasibility/latest/covariate_trajectory_coverage.csv
+      - outputs/psu_covariate_outcome_feasibility/latest/outcome_feasibility.csv
+      - outputs/psu_covariate_outcome_feasibility/latest/source_field_inventory.csv
