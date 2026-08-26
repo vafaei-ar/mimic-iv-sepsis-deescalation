@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Aggregate-only PSU MED_ADMIN clock audit for vasopressor overlap.
 
-Rebuilds the established strict modified PSU cohort, inspects raw MEDADMIN start/stop
-TIME encodings, compares standard timestamp parsing with numeric-seconds-since-midnight
-parsing, and reports vasopressor overlap counts for 0-24 h and 48-72 h. No identifiers
-or row-level data are exported.
+Rebuilds the established strict modified PSU cohort, characterizes raw MED_ADMIN
+start/stop TIME availability, and compares timestamp rules for vasopressor overlap.
+No identifiers or row-level data are exported.
 """
 from __future__ import annotations
 import argparse, ast, json, re
@@ -52,12 +51,15 @@ def parse_codes(path):
                     if isinstance(x,(list,tuple)) and x and re.fullmatch(r'\d{4,9}',str(x[0]).strip()):inc.add(str(x[0]).strip())
     return inc-exc,exc
 
-def ts(alias,date,time,mode='auto'):
+def auto_ts(alias,date,time):
     d=f"try_cast({alias}.{qi(date)} as date)"
     if not time:return f"cast({d} as timestamp)"
     raw=f"trim(cast({alias}.{qi(time)} as varchar))"; num=f"try_cast({raw} as double)"
-    if mode=='text': return f"try_cast(cast({alias}.{qi(date)} as varchar)||' '||coalesce(cast({alias}.{qi(time)} as varchar),'00:00:00') as timestamp)"
     return f"case when {d} is null then null when strpos({raw},':')>0 then try_cast(cast({alias}.{qi(date)} as varchar)||' '||{raw} as timestamp) when {num} between 0 and 86399 then cast({d} as timestamp)+({num}*interval 1 second) else null end"
+
+def text_ts(alias,date,time,default_time='00:00:00'):
+    if not time:return f"cast(try_cast({alias}.{qi(date)} as date) as timestamp)"
+    return f"try_cast(cast({alias}.{qi(date)} as varchar)||' '||coalesce(cast({alias}.{qi(time)} as varchar),'{default_time}') as timestamp)"
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('data_root',type=Path); ap.add_argument('--output-dir',type=Path,required=True); a=ap.parse_args(); a.output_dir.mkdir(parents=True,exist_ok=True)
@@ -65,34 +67,46 @@ def main():
     con=duckdb.connect(); con.execute('pragma threads=4')
     for k,p in paths.items():con.execute(f"create view {k} as select * from read_parquet({q(str(p))})")
     cols={k:set(con.execute(f'describe {k}').fetchdf()['column_name'].astype(str)) for k in paths}
+
     sp,se,ad,dc=first(cols['s'],['PATID']),first(cols['s'],['ENCOUNTERID']),first(cols['s'],['ADMIT_DATE']),first(cols['s'],['DISCHARGE_DATE'])
     pp,pe=first(cols['p'],['PATID']),first(cols['p'],['ENCOUNTERID']); od,ot=first(cols['p'],['RX_ORDER_DATE']),first(cols['p'],['RX_ORDER_TIME']); pn,pc,pr=first(cols['p'],['RAW_RX_MED_NAME']),first(cols['p'],['RXNORM_CUI']),first(cols['p'],['RX_ROUTE']); dp,dd=first(cols['d'],['PATID']),first(cols['d'],['DEATH_DATE'])
     inc,exc=parse_codes(root/'PCORnet/code/config/codes_antibiotics.py'); incsql=','.join(q(x) for x in sorted(inc)) or "''"; excsql=','.join(q(x) for x in sorted(exc)) or "''"
-    pts=ts('p',od,ot); name=f"lower(coalesce(cast(p.{qi(pn)} as varchar),''))"; code=f"trim(coalesce(cast(p.{qi(pc)} as varchar),''))"; route=f"upper(trim(coalesce(cast(p.{qi(pr)} as varchar),'')))"; broad=f"(({code} in ({incsql}) or regexp_matches({name},{q(BROAD_PATTERN)})) and {code} not in ({excsql}) and not regexp_matches({name},{q(NON_SYSTEMIC_PATTERN)}) and {route} not in ('ORAL','RESPIRATORY_TRACT','INHALATION'))"
+    pts=text_ts('p',od,ot); name=f"lower(coalesce(cast(p.{qi(pn)} as varchar),''))"; code=f"trim(coalesce(cast(p.{qi(pc)} as varchar),''))"; route=f"upper(trim(coalesce(cast(p.{qi(pr)} as varchar),'')))"; broad=f"(({code} in ({incsql}) or regexp_matches({name},{q(BROAD_PATTERN)})) and {code} not in ({excsql}) and not regexp_matches({name},{q(NON_SYSTEMIC_PATTERN)}) and {route} not in ('ORAL','RESPIRATORY_TRACT','INHALATION'))"
     con.execute(f"create temp table base as select distinct cast({qi(sp)} as varchar) patid,cast({qi(se)} as varchar) encounterid,try_cast({qi(ad)} as date) admit_date,try_cast({qi(dc)} as date) discharge_date from s")
     con.execute(f"create temp table anchors as select cast(p.{qi(pp)} as varchar) patid,cast(p.{qi(pe)} as varchar) encounterid,min({pts}) anchor_ts from p join base b on cast(p.{qi(pp)} as varchar)=b.patid and cast(p.{qi(pe)} as varchar)=b.encounterid where {broad} and {pts}>=cast(b.admit_date as timestamp) and {pts}<cast(b.admit_date as timestamp)+interval 24 hour group by 1,2")
     con.execute(f"create temp table deaths as select cast({qi(dp)} as varchar) patid,min(try_cast({qi(dd)} as date)) death_date from d group by 1")
     con.execute("create temp table cohort as select a.*,b.discharge_date,d.death_date from anchors a join base b using(patid,encounterid) left join deaths d using(patid) where (b.discharge_date is null or b.discharge_date>cast(a.anchor_ts+interval 96 hour as date)) and (d.death_date is null or d.death_date>cast(a.anchor_ts+interval 96 hour as date))")
     n=int(con.execute('select count(*) from cohort').fetchone()[0])
+
     mp,me=first(cols['m'],['PATID']),first(cols['m'],['ENCOUNTERID']); sd,st=first(cols['m'],['MEDADMIN_START_DATE']),first(cols['m'],['MEDADMIN_START_TIME']); ed,et=first(cols['m'],['MEDADMIN_STOP_DATE']),first(cols['m'],['MEDADMIN_STOP_TIME']); mn=first(cols['m'],['RAW_MEDADMIN_MED_NAME'])
     if not all([mp,me,sd,mn]): raise RuntimeError('MED_ADMIN fields missing')
     mname=f"lower(coalesce(cast(m.{qi(mn)} as varchar),''))"; incl=' or '.join(f"strpos({mname},{q(x)})>0" for x in VASO_TERMS); excl=' or '.join(f"strpos({mname},{q(x)})>0" for x in VASO_EXCLUDE); vaso=f"({incl}) and not ({excl})"
+
     enc=[]
     for label,tcol in [('start',st),('stop',et)]:
         if not tcol: continue
         raw=f"trim(cast(m.{qi(tcol)} as varchar))"; num=f"try_cast({raw} as double)"
-        r=con.execute(f"select count(*) n,count(*) filter(where strpos({raw},':')>0) colon_rows,count(*) filter(where {num} is not null) numeric_rows,min({num}),quantile_cont({num},0.5),quantile_cont({num},0.95),max({num}) from m where {vaso} and m.{qi(tcol)} is not null").fetchone()
+        r=con.execute(f"select count(*) n,count(*) filter(where strpos({raw},':')>0) colon_count,count(*) filter(where {num} is not null) numeric_count,min({num}),quantile_cont({num},0.5),quantile_cont({num},0.95),max({num}) from m where {vaso} and m.{qi(tcol)} is not null").fetchone()
         enc.append({'clock':label,'rows':safe(r[0]),'colon_rows':safe(r[1]),'numeric_rows':safe(r[2]),'numeric_min':r[3],'numeric_median':r[4],'numeric_p95':r[5],'numeric_max':r[6]})
     pd.DataFrame(enc).to_csv(a.output_dir/'time_encoding.csv',index=False)
+
+    parsers={
+        'text_midnight':(text_ts('m',sd,st,'00:00:00'), text_ts('m',ed,et,'00:00:00') if ed else None),
+        'auto':(auto_ts('m',sd,st), auto_ts('m',ed,et) if ed else None),
+        'date_span':(text_ts('m',sd,st,'00:00:00'), text_ts('m',ed,et,'23:59:59') if ed else None),
+    }
     rows=[]
-    for mode in ['text','auto']:
-        start=ts('m',sd,st,mode); stop=ts('m',ed,et,mode) if ed else start
-        stop=f"coalesce({stop},{start}+interval 1 hour)"
+    for mode,(start,stopraw) in parsers.items():
+        stop=f"coalesce({stopraw},{start}+interval 1 hour)" if stopraw else f"{start}+interval 1 hour"
+        counts={}
         for win,lo,hi in [('0_24h',0,24),('48_72h',48,72),('0_72h',0,72)]:
-            x=int(con.execute(f"select count(distinct c.encounterid) from cohort c join m on cast(m.{qi(mp)} as varchar)=c.patid and cast(m.{qi(me)} as varchar)=c.encounterid where {vaso} and {start}<c.anchor_ts+interval {hi} hour and {stop}>c.anchor_ts+interval {lo} hour").fetchone()[0])
+            x=int(con.execute(f"select count(distinct c.encounterid) from cohort c join m on cast(m.{qi(mp)} as varchar)=c.patid and cast(m.{qi(me)} as varchar)=c.encounterid where {vaso} and {start}<c.anchor_ts+interval {hi} hour and {stop}>c.anchor_ts+interval {lo} hour").fetchone()[0]); counts[win]=x
             rows.append({'parser':mode,'window':win,'encounters':safe(x),'cohort_n':safe(n),'proportion':x/n})
+        stopped=int(con.execute(f"select count(*) from (select c.encounterid,max(case when {start}<c.anchor_ts+interval 24 hour and {stop}>c.anchor_ts then 1 else 0 end) early,max(case when {start}<c.anchor_ts+interval 72 hour and {stop}>c.anchor_ts+interval 48 hour then 1 else 0 end) late from cohort c left join m on cast(m.{qi(mp)} as varchar)=c.patid and cast(m.{qi(me)} as varchar)=c.encounterid and {vaso} group by 1) z where early=1 and late=0").fetchone()[0])
+        rows.append({'parser':mode,'window':'stopped_before_72h','encounters':safe(stopped),'cohort_n':safe(n),'proportion':stopped/n})
     pd.DataFrame(rows).to_csv(a.output_dir/'vasopressor_overlap_by_parser.csv',index=False)
-    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'purpose':'resolve zero vasopressor overlap before final covariate freeze','guardrail':'No propensity score or treatment effects fit.'}
+
+    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'purpose':'resolve MED_ADMIN time semantics and freeze date-level vasopressor overlap','interpretation':'If vasopressor TIME fields are absent, date_span is the conservative date-level approximation: start date at 00:00 and stop date at 23:59:59.','guardrail':'No propensity score or treatment effects fit.'}
     (a.output_dir/'summary.json').write_text(json.dumps(summary,indent=2))
 
 if __name__=='__main__': main()
