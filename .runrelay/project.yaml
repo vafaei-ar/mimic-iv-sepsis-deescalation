@@ -387,3 +387,22 @@ tasks:
       - outputs/psu_modified_cohort_feasibility/latest/prescribing_time_completeness.csv
       - outputs/psu_modified_cohort_feasibility/latest/landmark_date_ambiguity.csv
       - outputs/psu_modified_cohort_feasibility/latest/field_map.csv
+
+  psu_exposure_classification_feasibility:
+    description: Classify 72-96h broad-spectrum continuation versus de-escalation in the strict modified PSU cohort and compare PRESCRIBING with MED_ADMIN using aggregate-only outputs.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_exposure_classification_feasibility.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_exposure_classification_feasibility/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_exposure_classification_feasibility/latest/summary.json
+      - outputs/psu_exposure_classification_feasibility/latest/prescribing_exposure_counts.csv
+      - outputs/psu_exposure_classification_feasibility/latest/med_admin_exposure_counts.csv
+      - outputs/psu_exposure_classification_feasibility/latest/source_reclassification_matrix.csv
+      - outputs/psu_exposure_classification_feasibility/latest/source_agreement_summary.csv
