@@ -425,3 +425,23 @@ tasks:
       - outputs/psu_covariate_outcome_feasibility/latest/covariate_trajectory_coverage.csv
       - outputs/psu_covariate_outcome_feasibility/latest/outcome_feasibility.csv
       - outputs/psu_covariate_outcome_feasibility/latest/source_field_inventory.csv
+
+  psu_covariate_mapping_freeze:
+    description: Produce aggregate-only candidate code/name/unit maps for PSU laboratory, OBS_CLIN, vasopressor, demographic, and diagnosis covariates before propensity-score modeling.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_covariate_mapping_freeze.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_covariate_mapping_freeze/latest
+    approval: manual
+    timeout_minutes: 90
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_covariate_mapping_freeze/latest/summary.json
+      - outputs/psu_covariate_mapping_freeze/latest/lab_candidate_map.csv
+      - outputs/psu_covariate_mapping_freeze/latest/obsclin_candidate_map.csv
+      - outputs/psu_covariate_mapping_freeze/latest/vasopressor_candidate_map.csv
+      - outputs/psu_covariate_mapping_freeze/latest/baseline_field_map.csv
+      - outputs/psu_covariate_mapping_freeze/latest/harmonization_recommendations.csv
