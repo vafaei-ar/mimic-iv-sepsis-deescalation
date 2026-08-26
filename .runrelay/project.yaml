@@ -464,3 +464,22 @@ tasks:
       - outputs/psu_covariate_mapping_freeze_v2/latest/obsclin_code_unit_map.csv
       - outputs/psu_covariate_mapping_freeze_v2/latest/strict_cohort_coverage.csv
       - outputs/psu_covariate_mapping_freeze_v2/latest/vasopressor_validated_map.csv
+
+  psu_lab_clock_semantics:
+    description: Audit LAB_ORDER, SPECIMEN, and RESULT clock completeness and offsets for frozen core lab mappings in the strict PSU cohort before choosing a trajectory clock.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_lab_clock_semantics.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_lab_clock_semantics/latest
+    approval: manual
+    timeout_minutes: 90
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_lab_clock_semantics/latest/summary.json
+      - outputs/psu_lab_clock_semantics/latest/clock_completeness.csv
+      - outputs/psu_lab_clock_semantics/latest/clock_pair_offsets.csv
+      - outputs/psu_lab_clock_semantics/latest/clock_anchor_offsets.csv
+      - outputs/psu_lab_clock_semantics/latest/order_clock_core_lab_coverage.csv
