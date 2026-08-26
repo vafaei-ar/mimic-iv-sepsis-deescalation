@@ -350,3 +350,21 @@ tasks:
       - outputs/psu_antibiotic_rxnorm_specificity/latest/text_rxnorm_agreement.csv
       - outputs/psu_antibiotic_rxnorm_specificity/latest/legacy_code_agent_counts.csv
       - outputs/psu_antibiotic_rxnorm_specificity/latest/legacy_encounter_source_overlap.csv
+
+  psu_antibiotic_ambiguous_routes:
+    description: Resolve formulation ambiguity for vancomycin, linezolid, and aztreonam using local medication-name and route signals before freezing the PSU broad-spectrum antibiotic phenotype.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_antibiotic_ambiguous_routes.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_antibiotic_ambiguous_routes/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_antibiotic_ambiguous_routes/latest/summary.json
+      - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_formulation_counts.csv
+      - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_encounter_counts.csv
+      - outputs/psu_antibiotic_ambiguous_routes/latest/ambiguous_agent_legacy_codes.csv
