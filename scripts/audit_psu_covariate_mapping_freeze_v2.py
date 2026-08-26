@@ -98,7 +98,7 @@ def main():
     rows=[]
     for concept,codes in LAB_CODES.items():
         csql=','.join(q(x) for x in codes)
-        unitdf=con.execute(f"select cast(l.{qi(lc)} as varchar) code,coalesce(cast(l.{qi(lu)} as varchar),'') unit,count(*) rows,count(distinct cast(l.{qi(le)} as varchar)) encounters from l where cast(l.{qi(lc)} as varchar) in ({csql}) and try_cast(l.{qi(lv)} as double) is not null group by 1,2 order by rows desc").fetchdf()
+        unitdf=con.execute(f"select cast(l.{qi(lc)} as varchar) code,coalesce(cast(l.{qi(lu)} as varchar),'') unit,count(*) AS \"rows\",count(distinct cast(l.{qi(le)} as varchar)) encounters from l where cast(l.{qi(lc)} as varchar) in ({csql}) and try_cast(l.{qi(lv)} as double) is not null group by 1,2 order by \"rows\" desc").fetchdf()
         for _,r in unitdf.head(12).iterrows(): rows.append({'concept':concept,'code':r.code,'unit':r.unit,'rows':safe(r.rows),'encounters':safe(r.encounters)})
     pd.DataFrame(rows).to_csv(a.output_dir/'lab_code_unit_map.csv',index=False)
     cov=[]
@@ -112,7 +112,7 @@ def main():
     orows=[]
     for concept,codes in OBS_CODES.items():
         csql=','.join(q(x) for x in codes)
-        udf=con.execute(f"select cast(o.{qi(oc)} as varchar) code,coalesce(cast(o.{qi(ou)} as varchar),'') unit,count(*) rows,count(distinct cast(o.{qi(oe)} as varchar)) encounters from o where cast(o.{qi(oc)} as varchar) in ({csql}) and try_cast(o.{qi(ov)} as double) is not null group by 1,2 order by rows desc").fetchdf()
+        udf=con.execute(f"select cast(o.{qi(oc)} as varchar) code,coalesce(cast(o.{qi(ou)} as varchar),'') unit,count(*) AS \"rows\",count(distinct cast(o.{qi(oe)} as varchar)) encounters from o where cast(o.{qi(oc)} as varchar) in ({csql}) and try_cast(o.{qi(ov)} as double) is not null group by 1,2 order by \"rows\" desc").fetchdf()
         for _,r in udf.head(12).iterrows():orows.append({'concept':concept,'code':r.code,'unit':r.unit,'rows':safe(r.rows),'encounters':safe(r.encounters)})
         for win,lo,hi in [('0_24h',0,24),('48_72h',48,72),('pre72',0,72)]:
             x=con.execute(f"select count(distinct c.encounterid) from cohort c join o on cast(o.{qi(op)} as varchar)=c.patid and cast(o.{qi(oe)} as varchar)=c.encounterid where cast(o.{qi(oc)} as varchar) in ({csql}) and try_cast(o.{qi(ov)} as double) is not null and {ots}>=c.anchor_ts+interval {lo} hour and {ots}<=c.anchor_ts+interval {hi} hour").fetchone()[0]
@@ -123,7 +123,7 @@ def main():
     mp,me=first(cols['m'],['PATID']),first(cols['m'],['ENCOUNTERID']); mn=first(cols['m'],['RAW_MEDADMIN_MED_NAME']); mr=first(cols['m'],['MEDADMIN_ROUTE']); md=first(cols['m'],['MEDADMIN_START_DATE']); mt=first(cols['m'],['MEDADMIN_START_TIME']); mts=ts('m',md,mt)
     mname=f"lower(coalesce(cast(m.{qi(mn)} as varchar),''))"; mroute=f"upper(trim(coalesce(cast(m.{qi(mr)} as varchar),'')))"
     incl=' or '.join(f"strpos({mname},{q(x)})>0" for x in VASO_TERMS); excl=' or '.join(f"strpos({mname},{q(x)})>0" for x in VASO_EXCLUDE)
-    vdf=con.execute(f"select case when strpos({mname},'norepinephrine')>0 or strpos({mname},'levophed')>0 then 'norepinephrine' when strpos({mname},'phenylephrine')>0 then 'phenylephrine' when strpos({mname},'vasopressin')>0 then 'vasopressin' when strpos({mname},'epinephrine')>0 then 'epinephrine' when strpos({mname},'dopamine')>0 then 'dopamine' else 'other' end agent,{mroute} route,count(*) rows,count(distinct cast(m.{qi(me)} as varchar)) encounters from m where ({incl}) and not ({excl}) group by 1,2 order by rows desc").fetchdf(); vdf['rows']=vdf['rows'].map(safe); vdf['encounters']=vdf['encounters'].map(safe); vdf.to_csv(a.output_dir/'vasopressor_validated_map.csv',index=False)
+    vdf=con.execute(f"select case when strpos({mname},'norepinephrine')>0 or strpos({mname},'levophed')>0 then 'norepinephrine' when strpos({mname},'phenylephrine')>0 then 'phenylephrine' when strpos({mname},'vasopressin')>0 then 'vasopressin' when strpos({mname},'epinephrine')>0 then 'epinephrine' when strpos({mname},'dopamine')>0 then 'dopamine' else 'other' end agent,{mroute} route,count(*) AS \"rows\",count(distinct cast(m.{qi(me)} as varchar)) encounters from m where ({incl}) and not ({excl}) group by 1,2 order by \"rows\" desc").fetchdf(); vdf['rows']=vdf['rows'].map(safe); vdf['encounters']=vdf['encounters'].map(safe); vdf.to_csv(a.output_dir/'vasopressor_validated_map.csv',index=False)
     gcs=con.execute("select count(*) from o where lower(coalesce(cast(raw_obsclin_name as varchar),'')) like '%glasgow%' or lower(coalesce(cast(raw_obsclin_name as varchar),'')) like '%gcs%'").fetchone()[0] if 'raw_obsclin_name' in {x.lower() for x in cols['o']} else 0
     summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'lab_mapping':'prespecified LOINC codes with unit audit','obsclin_mapping':'prespecified LOINC/SNOMED-like codes with unit audit','gcs_candidate_rows':safe(gcs),'fio2_primary':'exclude','ventilation_primary':'unavailable_current_extract','guardrail':'No propensity score or treatment effects fit.'}
     (a.output_dir/'summary.json').write_text(json.dumps(summary,indent=2))
