@@ -2,8 +2,9 @@
 """Aggregate-only PSU laboratory clock semantics audit.
 
 Compares LAB_ORDER_DATE/TIME, SPECIMEN_DATE/TIME, and RESULT_DATE/TIME for core
-laboratory rows linked to the frozen strict PSU cohort. Exports aggregate counts and
-clock-offset summaries only. No identifiers or patient-level rows are exported.
+laboratory rows linked to the frozen strict PSU cohort. Also tests whether raw TIME
+fields are standard clock strings, minutes since midnight, seconds since midnight,
+or HHMM-style numeric values. Exports aggregate summaries only.
 """
 from __future__ import annotations
 import argparse, ast, json, re
@@ -84,18 +85,38 @@ def main():
     n=int(con.execute('select count(*) from cohort').fetchone()[0])
 
     lp,le=first(cols['l'],['PATID']),first(cols['l'],['ENCOUNTERID']); lc=first(cols['l'],['LAB_LOINC']); lv=first(cols['l'],['RESULT_NUM'])
+    clock_fields={}
     clocks={}
     for label,dnames,tnames in [('order',['LAB_ORDER_DATE'],['LAB_ORDER_TIME']),('specimen',['SPECIMEN_DATE'],['SPECIMEN_TIME']),('result',['RESULT_DATE'],['RESULT_TIME'])]:
         dcol=first(cols['l'],dnames); tcol=first(cols['l'],tnames)
-        if dcol: clocks[label]=ts('l',dcol,tcol)
+        if dcol:
+            clocks[label]=ts('l',dcol,tcol)
+            clock_fields[label]=(dcol,tcol)
     allcodes=','.join(q(x) for xs in LAB_CODES.values() for x in xs)
     basecond=f"cast(l.{qi(lp)} as varchar)=c.patid and cast(l.{qi(le)} as varchar)=c.encounterid and cast(l.{qi(lc)} as varchar) in ({allcodes}) and try_cast(l.{qi(lv)} as double) is not null"
 
     complete=[]
+    encoding={}
     for label,expr in clocks.items():
         cnt=int(con.execute(f"select count(*) from cohort c join l on {basecond} where {expr} is not null").fetchone()[0])
         enc=int(con.execute(f"select count(distinct c.encounterid) from cohort c join l on {basecond} where {expr} is not null").fetchone()[0])
-        complete.append({'clock':label,'rows_with_clock':safe(cnt),'encounters_with_clock':safe(enc),'cohort_n':safe(n)})
+        dcol,tcol=clock_fields[label]
+        raw={}
+        if tcol:
+            t=f"trim(cast(l.{qi(tcol)} as varchar))"; num=f"try_cast({t} as double)"; d=f"try_cast(l.{qi(dcol)} as date)"
+            raw_nonnull=int(con.execute(f"select count(*) from cohort c join l on {basecond} where l.{qi(tcol)} is not null and {t}<>''").fetchone()[0])
+            colon=int(con.execute(f"select count(*) from cohort c join l on {basecond} where l.{qi(tcol)} is not null and strpos({t},':')>0").fetchone()[0])
+            numeric=int(con.execute(f"select count(*) from cohort c join l on {basecond} where {num} is not null").fetchone()[0])
+            stats=con.execute(f"select min({num}),quantile_cont({num},0.05),quantile_cont({num},0.5),quantile_cont({num},0.95),max({num}) from cohort c join l on {basecond} where {num} is not null").fetchone()
+            valid_min=f"{num} between 0 and 1439"
+            valid_sec=f"{num} between 0 and 86399"
+            hh=f"floor({num}/100)"; mm=f"mod({num},100)"; valid_hhmm=f"{num} between 0 and 2359 and {hh} between 0 and 23 and {mm} between 0 and 59"
+            parse_min=int(con.execute(f"select count(*) from cohort c join l on {basecond} where {d} is not null and {valid_min}").fetchone()[0])
+            parse_sec=int(con.execute(f"select count(*) from cohort c join l on {basecond} where {d} is not null and {valid_sec}").fetchone()[0])
+            parse_hhmm=int(con.execute(f"select count(*) from cohort c join l on {basecond} where {d} is not null and {valid_hhmm}").fetchone()[0])
+            raw={'raw_time_nonnull_rows':safe(raw_nonnull),'colon_string_rows':safe(colon),'numeric_rows':safe(numeric),'numeric_min':stats[0],'numeric_p05':stats[1],'numeric_median':stats[2],'numeric_p95':stats[3],'numeric_max':stats[4],'rows_valid_minutes_since_midnight':safe(parse_min),'rows_valid_seconds_since_midnight':safe(parse_sec),'rows_valid_hhmm_numeric':safe(parse_hhmm)}
+            encoding[label]=raw
+        complete.append({'clock':label,'rows_with_clock':safe(cnt),'encounters_with_clock':safe(enc),'cohort_n':safe(n),**raw})
     pd.DataFrame(complete).to_csv(a.output_dir/'clock_completeness.csv',index=False)
 
     pairrows=[]
@@ -124,7 +145,7 @@ def main():
                 concept.append({'concept':concept_name,'window':win,'count':safe(x),'cohort_n':safe(n),'proportion':x/n if n else None})
     pd.DataFrame(concept).to_csv(a.output_dir/'order_clock_core_lab_coverage.csv',index=False)
 
-    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'available_clocks':list(clocks),'candidate_primary_lab_clock':'LAB_ORDER_DATE/TIME pending offset audit','guardrail':'No propensity score or treatment effects fit.'}
+    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'available_clocks':list(clocks),'time_encoding_diagnostic':encoding,'candidate_primary_lab_clock':'LAB_ORDER_DATE/TIME pending encoding audit','guardrail':'No propensity score or treatment effects fit.'}
     (a.output_dir/'summary.json').write_text(json.dumps(summary,indent=2))
 
 if __name__=='__main__': main()
