@@ -538,3 +538,21 @@ tasks:
       - outputs/psu_ps_balance/latest/ps_distribution.csv
       - outputs/psu_ps_balance/latest/weight_diagnostics.csv
       - outputs/psu_ps_balance/latest/missingness_by_exposure.csv
+
+  psu_final_outcome_freeze:
+    description: Freeze date-level PSU outcome definitions and overall distributions from the 96-hour landmark without joining exposure groups or estimating treatment effects.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_final_outcome_freeze.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_final_outcome_freeze/latest
+    approval: manual
+    timeout_minutes: 120
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_final_outcome_freeze/latest/summary.json
+      - outputs/psu_final_outcome_freeze/latest/outcome_dictionary.csv
+      - outputs/psu_final_outcome_freeze/latest/outcome_overall_summary.csv
+      - outputs/psu_final_outcome_freeze/latest/outcome_observability.csv
