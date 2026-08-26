@@ -81,7 +81,7 @@ def main():
     for label,tcol in [('start',st),('stop',et)]:
         if not tcol: continue
         raw=f"trim(cast(m.{qi(tcol)} as varchar))"; num=f"try_cast({raw} as double)"
-        r=con.execute(f"select count(*) n,count(*) filter(where strpos({raw},':')>0) colon,count(*) filter(where {num} is not null) numeric,min({num}),quantile_cont({num},0.5),quantile_cont({num},0.95),max({num}) from m where {vaso} and m.{qi(tcol)} is not null").fetchone()
+        r=con.execute(f"select count(*) n,count(*) filter(where strpos({raw},':')>0) colon_rows,count(*) filter(where {num} is not null) numeric_rows,min({num}),quantile_cont({num},0.5),quantile_cont({num},0.95),max({num}) from m where {vaso} and m.{qi(tcol)} is not null").fetchone()
         enc.append({'clock':label,'rows':safe(r[0]),'colon_rows':safe(r[1]),'numeric_rows':safe(r[2]),'numeric_min':r[3],'numeric_median':r[4],'numeric_p95':r[5],'numeric_max':r[6]})
     pd.DataFrame(enc).to_csv(a.output_dir/'time_encoding.csv',index=False)
     rows=[]
