@@ -312,3 +312,21 @@ tasks:
       - outputs/psu_antibiotic_source_mapping/latest/broad_agent_counts.csv
       - outputs/psu_antibiotic_source_mapping/latest/encounter_source_overlap.csv
       - outputs/psu_antibiotic_source_mapping/latest/old_antibiotic_code_evidence.json
+
+  psu_antibiotic_route_rxnorm:
+    description: Audit PSU broad-antibiotic route value coding and quantify coverage of the prior local RxNorm mapping in PRESCRIBING and MED_ADMIN; aggregate outputs only.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_antibiotic_route_rxnorm.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_antibiotic_route_rxnorm/latest
+    approval: manual
+    timeout_minutes: 60
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_antibiotic_route_rxnorm/latest/summary.json
+      - outputs/psu_antibiotic_route_rxnorm/latest/broad_route_value_counts.csv
+      - outputs/psu_antibiotic_route_rxnorm/latest/rxnorm_mapping_summary.csv
+      - outputs/psu_antibiotic_route_rxnorm/latest/legacy_rxnorm_code_counts.csv
