@@ -2,9 +2,10 @@
 """Aggregate-only PSU laboratory clock semantics audit.
 
 Compares LAB_ORDER_DATE/TIME, SPECIMEN_DATE/TIME, and RESULT_DATE/TIME for core
-laboratory rows linked to the frozen strict PSU cohort. Also tests whether raw TIME
-fields are standard clock strings, minutes since midnight, seconds since midnight,
-or HHMM-style numeric values. Exports aggregate summaries only.
+laboratory rows linked to the frozen strict PSU cohort. Raw specimen/result TIME fields
+are decoded as seconds since midnight after the encoding audit demonstrated values from
+0 to 86340 with all numeric rows valid under that representation. Exports aggregate
+summaries only. No identifiers or patient-level rows are exported.
 """
 from __future__ import annotations
 import argparse, ast, json, re
@@ -58,11 +59,17 @@ def parse_codes(path):
                     if isinstance(x,(list,tuple)) and x and re.fullmatch(r'\d{4,9}',str(x[0]).strip()): inc.add(str(x[0]).strip())
     return inc-exc, exc
 
-def ts(alias,date,time):
+def ts_standard(alias,date,time):
     if not date: return None
     if time:
         return f"try_cast(cast({alias}.{qi(date)} as varchar)||' '||coalesce(cast({alias}.{qi(time)} as varchar),'00:00:00') as timestamp)"
     return f"try_cast({alias}.{qi(date)} as timestamp)"
+
+def ts_seconds_since_midnight(alias,date,time):
+    if not date: return None
+    if not time: return f"try_cast({alias}.{qi(date)} as timestamp)"
+    num=f"try_cast({alias}.{qi(time)} as double)"
+    return f"case when try_cast({alias}.{qi(date)} as date) is not null and {num} between 0 and 86399 then cast(try_cast({alias}.{qi(date)} as date) as timestamp) + ({num} * interval '1 second') else NULL end"
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('data_root',type=Path); ap.add_argument('--output-dir',type=Path,required=True); a=ap.parse_args(); a.output_dir.mkdir(parents=True,exist_ok=True)
@@ -76,7 +83,7 @@ def main():
     pp,pe=first(cols['p'],['PATID']),first(cols['p'],['ENCOUNTERID']); od,ot=first(cols['p'],['RX_ORDER_DATE']),first(cols['p'],['RX_ORDER_TIME']); pn,pc,pr=first(cols['p'],['RAW_RX_MED_NAME']),first(cols['p'],['RXNORM_CUI']),first(cols['p'],['RX_ROUTE'])
     dp,dd=first(cols['d'],['PATID']),first(cols['d'],['DEATH_DATE'])
     inc,exc=parse_codes(root/'PCORnet/code/config/codes_antibiotics.py'); incsql=','.join(q(x) for x in sorted(inc)) or "''"; excsql=','.join(q(x) for x in sorted(exc)) or "''"
-    pts=ts('p',od,ot); name=f"lower(coalesce(cast(p.{qi(pn)} as varchar),''))"; code=f"trim(coalesce(cast(p.{qi(pc)} as varchar),''))"; route=f"upper(trim(coalesce(cast(p.{qi(pr)} as varchar),'')))"
+    pts=ts_standard('p',od,ot); name=f"lower(coalesce(cast(p.{qi(pn)} as varchar),''))"; code=f"trim(coalesce(cast(p.{qi(pc)} as varchar),''))"; route=f"upper(trim(coalesce(cast(p.{qi(pr)} as varchar),'')))"
     broad=f"(({code} in ({incsql}) or regexp_matches({name},{q(BROAD_PATTERN)})) and {code} not in ({excsql}) and not regexp_matches({name},{q(NON_SYSTEMIC_PATTERN)}) and {route} not in ('ORAL','RESPIRATORY_TRACT','INHALATION'))"
     con.execute(f"create temp table base as select distinct cast({qi(sp)} as varchar) patid,cast({qi(se)} as varchar) encounterid,try_cast({qi(ad)} as date) admit_date,try_cast({qi(dc)} as date) discharge_date from s")
     con.execute(f"create temp table anchors as select cast(p.{qi(pp)} as varchar) patid,cast(p.{qi(pe)} as varchar) encounterid,min({pts}) anchor_ts from p join base b on cast(p.{qi(pp)} as varchar)=b.patid and cast(p.{qi(pe)} as varchar)=b.encounterid where {broad} and {pts}>=cast(b.admit_date as timestamp) and {pts}<cast(b.admit_date as timestamp)+interval 24 hour group by 1,2")
@@ -90,7 +97,10 @@ def main():
     for label,dnames,tnames in [('order',['LAB_ORDER_DATE'],['LAB_ORDER_TIME']),('specimen',['SPECIMEN_DATE'],['SPECIMEN_TIME']),('result',['RESULT_DATE'],['RESULT_TIME'])]:
         dcol=first(cols['l'],dnames); tcol=first(cols['l'],tnames)
         if dcol:
-            clocks[label]=ts('l',dcol,tcol)
+            if label in ('specimen','result'):
+                clocks[label]=ts_seconds_since_midnight('l',dcol,tcol)
+            else:
+                clocks[label]=ts_standard('l',dcol,tcol)
             clock_fields[label]=(dcol,tcol)
     allcodes=','.join(q(x) for xs in LAB_CODES.values() for x in xs)
     basecond=f"cast(l.{qi(lp)} as varchar)=c.patid and cast(l.{qi(le)} as varchar)=c.encounterid and cast(l.{qi(lc)} as varchar) in ({allcodes}) and try_cast(l.{qi(lv)} as double) is not null"
@@ -136,16 +146,15 @@ def main():
     pd.DataFrame(anch).to_csv(a.output_dir/'clock_anchor_offsets.csv',index=False)
 
     concept=[]
-    orderexpr=clocks.get('order')
-    if orderexpr:
+    for clock_name,clock_expr in clocks.items():
         for concept_name,codes in LAB_CODES.items():
             csql=','.join(q(x) for x in codes)
             for win,lo,hi in [('0_24h',0,24),('48_72h',48,72),('pre72',0,72)]:
-                x=int(con.execute(f"select count(distinct c.encounterid) from cohort c join l on cast(l.{qi(lp)} as varchar)=c.patid and cast(l.{qi(le)} as varchar)=c.encounterid where cast(l.{qi(lc)} as varchar) in ({csql}) and try_cast(l.{qi(lv)} as double) is not null and {orderexpr}>=c.anchor_ts+interval {lo} hour and {orderexpr}<c.anchor_ts+interval {hi} hour").fetchone()[0])
-                concept.append({'concept':concept_name,'window':win,'count':safe(x),'cohort_n':safe(n),'proportion':x/n if n else None})
+                x=int(con.execute(f"select count(distinct c.encounterid) from cohort c join l on cast(l.{qi(lp)} as varchar)=c.patid and cast(l.{qi(le)} as varchar)=c.encounterid where cast(l.{qi(lc)} as varchar) in ({csql}) and try_cast(l.{qi(lv)} as double) is not null and {clock_expr}>=c.anchor_ts+interval {lo} hour and {clock_expr}<c.anchor_ts+interval {hi} hour").fetchone()[0])
+                concept.append({'clock':clock_name,'concept':concept_name,'window':win,'count':safe(x),'cohort_n':safe(n),'proportion':x/n if n else None})
     pd.DataFrame(concept).to_csv(a.output_dir/'order_clock_core_lab_coverage.csv',index=False)
 
-    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'available_clocks':list(clocks),'time_encoding_diagnostic':encoding,'candidate_primary_lab_clock':'LAB_ORDER_DATE/TIME pending encoding audit','guardrail':'No propensity score or treatment effects fit.'}
+    summary={'privacy_mode':'aggregate_only','strict_cohort_n':safe(n),'available_clocks':list(clocks),'specimen_result_time_decoding':'numeric seconds since midnight','candidate_primary_lab_clock':'pending comparison of corrected specimen/result clocks with order clock','guardrail':'No propensity score or treatment effects fit.'}
     (a.output_dir/'summary.json').write_text(json.dumps(summary,indent=2))
 
 if __name__=='__main__': main()
