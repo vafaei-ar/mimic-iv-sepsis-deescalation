@@ -54,3 +54,16 @@ tasks:
     artifacts:
       - outputs/publication_integration/inventory/publication_output_inventory.json
       - outputs/publication_integration/inventory/publication_output_inventory.csv
+
+  publication_source_snapshot:
+    description: Collect the exact frozen aggregate MIMIC and PSU publication source tables into a sanitized snapshot; no patient-level data and no estimand recomputation.
+    command:
+      - .venv/bin/python
+      - scripts/build_publication_source_snapshot.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/source_snapshot/publication_source_snapshot.json
+      - outputs/publication_integration/source_snapshot/publication_source_files.csv
