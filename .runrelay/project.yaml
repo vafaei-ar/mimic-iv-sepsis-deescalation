@@ -41,3 +41,16 @@ tasks:
     artifacts:
       - outputs/psu_publication_parity/latest/parity_report.json
       - outputs/psu_publication_parity/latest/parity_checks.csv
+
+  publication_output_inventory:
+    description: Inventory only project-local aggregate outputs to identify the frozen MIMIC and PSU publication result packages; do not read or export patient-level data.
+    command:
+      - .venv/bin/python
+      - scripts/build_publication_inventory.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/inventory/publication_output_inventory.json
+      - outputs/publication_integration/inventory/publication_output_inventory.csv
