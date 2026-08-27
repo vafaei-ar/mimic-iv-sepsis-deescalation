@@ -4,7 +4,11 @@ These tests do not access restricted PSU data and therefore can run in public CI
 purpose is to catch accidental software drift in the publication entry points before a
 reviewer or collaborator runs the real-data pipeline on the approved machine.
 """
+import importlib.util
+import json
 from pathlib import Path
+
+import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +17,15 @@ SCRIPTS = ROOT / "scripts"
 
 def _text(name: str) -> str:
     return (SCRIPTS / name).read_text(encoding="utf-8")
+
+
+def _load_script_module(name: str):
+    path = SCRIPTS / name
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_final_psu_entry_points_are_present():
@@ -74,3 +87,15 @@ def test_reviewer_documentation_exists_and_uses_correct_terminology():
 
 def test_obsolete_execution_placeholders_are_removed():
     assert not list((ROOT / "docs").glob(".placeholder_psu_point_estimates*"))
+
+
+def test_parity_report_rows_are_json_safe_for_numpy_scalars():
+    parity = _load_script_module("check_psu_publication_parity.py")
+    checks = []
+    parity._record(checks, "integer", np.int64(19841), 19841)
+    parity._record(checks, "float", np.float64(-0.0256), -0.0256, 1e-6)
+    # This reproduces the failure mode seen after the first expensive parity run:
+    # standard-library json must be able to serialize the completed report rows.
+    json.dumps({"checks": checks})
+    assert checks[0]["observed"] == 19841
+    assert checks[1]["passed"] is True
