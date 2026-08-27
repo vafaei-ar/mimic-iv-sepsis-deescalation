@@ -87,3 +87,23 @@ tasks:
       - outputs/psu_prespecified_robustness/latest/lenient_landmark/effect_summary.json
       - outputs/psu_prespecified_robustness/latest/lenient_landmark/point_estimates.csv
       - outputs/psu_prespecified_robustness/latest/lenient_landmark/effect_weighting_diagnostics.csv
+
+  psu_prespecified_robustness_bootstrap:
+    description: Run 1000 encounter-level nonparametric bootstrap replicates separately for the prespecified MED_ADMIN exposure and lenient-landmark PSU robustness analyses, refitting the frozen PS in every replicate; aggregate outputs only.
+    command:
+      - .venv/bin/python
+      - scripts/run_psu_prespecified_robustness_bootstrap.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/psu_prespecified_robustness_bootstrap/latest
+    approval: manual
+    timeout_minutes: 360
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/psu_prespecified_robustness_bootstrap/latest/robustness_bootstrap_summary.csv
+      - outputs/psu_prespecified_robustness_bootstrap/latest/robustness_bootstrap_metadata.json
+      - outputs/psu_prespecified_robustness_bootstrap/latest/medadmin_exposure/bootstrap_ci.csv
+      - outputs/psu_prespecified_robustness_bootstrap/latest/medadmin_exposure/bootstrap_diagnostics.json
+      - outputs/psu_prespecified_robustness_bootstrap/latest/lenient_landmark/bootstrap_ci.csv
+      - outputs/psu_prespecified_robustness_bootstrap/latest/lenient_landmark/bootstrap_diagnostics.json
