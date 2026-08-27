@@ -122,3 +122,25 @@ tasks:
       - outputs/publication_integration/nature_package/figure3_cross_dataset_mortality.pdf
       - outputs/publication_integration/nature_package/figure4_stewardship_outcomes.png
       - outputs/publication_integration/nature_package/figure4_stewardship_outcomes.pdf
+
+  publication_icm_package:
+    description: Build an Intensive Care Medicine original-paper package from frozen aggregate outputs only, including a <=3000-word manuscript, structured abstract, take-home message, cover letter, checklist, ICM-style figures, and Word draft.
+    command:
+      - .venv/bin/python
+      - scripts/build_icm_publication_package.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/icm_package/ICM_manuscript_draft.md
+      - outputs/publication_integration/icm_package/ICM_manuscript_draft.docx
+      - outputs/publication_integration/icm_package/ICM_cover_letter.md
+      - outputs/publication_integration/icm_package/ICM_submission_checklist.md
+      - outputs/publication_integration/icm_package/ICM_wordcounts.csv
+      - outputs/publication_integration/icm_package/Fig1_target_trial_timeline.png
+      - outputs/publication_integration/icm_package/Fig1_target_trial_timeline.pdf
+      - outputs/publication_integration/icm_package/Fig2_progressive_adjustment.png
+      - outputs/publication_integration/icm_package/Fig2_progressive_adjustment.pdf
+      - outputs/publication_integration/icm_package/Fig3_cross_dataset_results.png
+      - outputs/publication_integration/icm_package/Fig3_cross_dataset_results.pdf
