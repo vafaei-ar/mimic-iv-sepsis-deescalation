@@ -42,18 +42,38 @@ def _is_binary_01(x: pd.Series) -> bool:
 
 
 def prepare_ps_covariates(df: pd.DataFrame, candidate_vars: Iterable[str]) -> tuple[pd.DataFrame, list[str], pd.DataFrame]:
-    """Exact scripted equivalent of the v5.5 stable PS preparation."""
+    """Prepare the frozen MIMIC propensity-score design matrix.
+
+    This intentionally preserves the stable v5.5/v5.7 implementation used for the
+    publication analysis. Binary 0/1 variables use zero fill. Continuous variables
+    use analysis-sample mean fill, then are standardized with the same sample mean
+    and population SD and clipped to +/-8. The clipping is a numerical-stability
+    guardrail for extreme standardized values; it is not an outcome-driven trimming
+    rule. This function does not create missingness indicators. Any missingness flags
+    included in the PS were created upstream and explicitly retained in the frozen
+    specification.
+
+    Do not silently change mean fill to median fill, add missingness indicators, or
+    change the clipping bound during manuscript preparation: those would alter the
+    frozen MIMIC PS rather than merely refactor the code.
+    """
     d = df.copy(); ps_vars = []; rows = []
     for var in candidate_vars:
         if var not in d.columns: continue
         x = pd.to_numeric(d[var], errors="coerce")
         if x.isna().all() or x.nunique(dropna=True) < 2: continue
         if _is_binary_01(x):
+            # Historical/frozen convention: absence/missingness in a binary PS term
+            # is represented as 0 unless a separate upstream missingness flag is one
+            # of the explicitly frozen covariates.
             d[var] = x.fillna(0).astype(float); ps_vars.append(var)
             rows.append({"original_variable": var, "ps_variable": var, "type": "binary", "mean": np.nan, "sd": np.nan})
         else:
             mu = float(x.mean()); sd = float(x.std(ddof=0))
             if not np.isfinite(sd) or sd == 0: continue
+            # Mean fill occurs before standardization so an imputed observation maps
+            # to z=0. Values are capped at +/-8 only to avoid numerical instability
+            # from implausibly large z-scores in the binomial fit.
             zname = var + "_z"; d[zname] = ((x.fillna(mu) - mu) / sd).clip(lower=-8, upper=8); ps_vars.append(zname)
             rows.append({"original_variable": var, "ps_variable": zname, "type": "continuous_standardized", "mean": mu, "sd": sd})
     return d, ps_vars, pd.DataFrame(rows)
@@ -65,6 +85,13 @@ def _build_formula(df: pd.DataFrame, treatment_col: str, variables: Iterable[str
 
 
 def fit_binomial_formula(formula: str, data: pd.DataFrame):
+    """Fit the frozen binomial model with a fail-safe small-ridge fallback.
+
+    Ordinary GLM is the intended model. The alpha=0.001 L2-regularized fit is used
+    only when the ordinary fit fails or does not converge. It exists to make the
+    prespecified model numerically executable in difficult bootstrap samples, not as
+    an alternate model selected according to treatment-effect direction.
+    """
     model = smf.glm(formula=formula, data=data, family=sm.families.Binomial())
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="overflow encountered in exp", category=RuntimeWarning)
@@ -84,6 +111,13 @@ def _safe_predict_training_data(fit) -> np.ndarray:
 
 
 def fit_stabilized_iptw(cohort: pd.DataFrame, candidate_vars: Iterable[str], treatment_col: str = "A") -> tuple[pd.DataFrame, object, dict]:
+    """Fit the frozen stabilized-IPTW model used for the primary MIMIC ATE.
+
+    Both numerator and denominator probabilities are clipped to [0.001, 0.999].
+    This is a numerical guardrail against effectively zero/one fitted probabilities;
+    it is distinct from percentile weight truncation, which is evaluated only as a
+    sensitivity analysis and does not replace the primary stabilized ATE weights.
+    """
     d, ps_vars, std_table = prepare_ps_covariates(cohort, candidate_vars)
     if d[treatment_col].nunique() != 2: raise ValueError("Treatment must have two levels.")
     formula, used = _build_formula(d, treatment_col, ps_vars)
@@ -134,11 +168,15 @@ def balance_table(df: pd.DataFrame, variables: Iterable[str], treatment_col: str
 
 
 def bootstrap_iptw_ci(df: pd.DataFrame, candidate_vars: Iterable[str], outcome: str, kind: str, reps: int, seed: int, treatment_col: str = "A") -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Nonparametric bootstrap with PS refitting inside every successful replicate."""
     rng = np.random.default_rng(seed); records = []; failures = 0; n = len(df)
     for b in range(reps):
         sample = df.iloc[rng.integers(0, n, size=n)].copy()
         if sample[treatment_col].nunique() < 2: failures += 1; continue
         try:
+            # Refit, standardize, and re-estimate weights within the resampled cohort.
+            # Holding the original full-sample weights fixed would understate a source
+            # of estimation uncertainty and is not the publication bootstrap.
             w, _, _ = fit_stabilized_iptw(sample, candidate_vars, treatment_col=treatment_col)
             if kind == "risk":
                 rt, rc, rd, rr = risks(w, outcome, "SW_A", treatment_col); records.append({"rep": b, "risk_treated": rt, "risk_control": rc, "risk_difference": rd, "risk_ratio": rr})
