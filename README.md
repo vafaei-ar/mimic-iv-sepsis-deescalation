@@ -6,12 +6,13 @@ Reproducible analysis code for the MIMIC-IV day-3 broad-spectrum antibiotic de-e
 
 For a scientific/code review, read these files in order:
 
-1. `docs/target_trial_spec.md` — frozen target-trial contract.
-2. `docs/mimic_v57_freeze_review.md` — MIMIC publication-freeze review and known implementation decisions.
-3. `docs/psu_crosswalk.md` — MIMIC-to-PSU data-source crosswalk.
-4. `docs/psu_analysis_walkthrough.md` — reviewer-oriented PSU pipeline, rationale, parity targets, and exact reproduction commands.
+1. `docs/target_trial_spec.md` — frozen target-trial contract and explicit PSU deviations.
+2. `docs/mimic_analysis_walkthrough.md` — reviewer-oriented MIMIC pipeline, final vital-sign correction provenance, and exact publication reproduction sequence.
+3. `docs/mimic_v57_freeze_review.md` — final corrected MIMIC results, diagnostics, and reporting rules.
+4. `docs/psu_crosswalk.md` — MIMIC-to-PSU data-source crosswalk and frozen limitations.
+5. `docs/psu_analysis_walkthrough.md` — reviewer-oriented PSU pipeline, rationale, parity targets, and exact reproduction commands.
 
-The comments in the final PSU entry-point scripts intentionally explain non-obvious scientific decisions next to the code that implements them. Historical audit scripts are retained because they document how source semantics were validated before the final definitions were frozen.
+Comments in the maintained publication entry points intentionally explain non-obvious scientific decisions next to the code that implements them. Historical audit scripts are retained because they document how source semantics were validated before final definitions were frozen.
 
 ## Scientific design
 
@@ -20,6 +21,8 @@ The comments in the final PSU entry-point scripts intentionally explain non-obvi
 The primary MIMIC analysis is anchored at the first qualifying systemic IV broad-spectrum antibiotic exposure. The treatment decision time is 72 h later, treatment is classified over 72-96 h, and follow-up starts at the 96-h landmark. The primary culture-negative definition requires qualifying microbiology sampling and no positive clinical culture result available by the 72-h decision time.
 
 The primary estimand is the ATE estimated using stabilized inverse probability treatment weighting. Covariates are measured before the 72-h treatment decision. The final model includes clinical status and treatment/intensity trajectories because confounding by clinical improvement is central to the scientific question.
+
+The final manuscript numbers come from the **audited vital-corrected inference rerun**, not directly from the pre-repair point estimates produced by the initial source-dependent v5.7 run. The exact three-stage sequence is documented below and in `docs/mimic_analysis_walkthrough.md`.
 
 ### PSU modified external replication
 
@@ -32,9 +35,9 @@ The primary PSU exposure therefore uses the closest defensible structured source
 ```text
 config/                 analysis configuration and site mapping templates
 src/sepsis_deescalation reusable MIMIC analysis package
-scripts/                audit and final command-line entry points
-tests/                  unit/smoke tests
-docs/                   scientific contracts, freeze reviews, and PSU reviewer guide
+scripts/                audit, correction, and final command-line entry points
+tests/                  unit/smoke/publication-contract tests
+docs/                   scientific contracts, freeze reviews, and reviewer guides
 outputs/                 generated local results/caches; ignored by git
 .runrelay/               approved-machine execution manifest
 ```
@@ -55,12 +58,12 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 pytest -q
-ruff check .
+ruff check src scripts tests
 ```
 
-Python dependencies are constrained by major version in `pyproject.toml`. Publication runs also record the exact git commit and execution metadata through RunRelay.
+Python dependencies are constrained in `pyproject.toml`. Publication execution is tied to a named git commit, and approved-machine runs record their execution provenance through RunRelay.
 
-## MIMIC-IV reproduction
+## MIMIC-IV publication reproduction
 
 Set the local MIMIC-IV 3.1 root without committing it:
 
@@ -74,16 +77,9 @@ Validate first:
 python scripts/validate_mimic.py --config config/mimic.yaml
 ```
 
-### Fast development mode
+### 1. Source-dependent v5.7 run
 
-```bash
-python scripts/run_mimic.py \
-  --config config/mimic.yaml \
-  --mode fast \
-  --jobs auto
-```
-
-### Final publication mode
+Run the complete source-dependent analysis. This establishes cohort membership, exposure classification, microbiology eligibility, outcomes, and source-dependent sensitivities.
 
 ```bash
 python scripts/run_mimic.py \
@@ -92,23 +88,58 @@ python scripts/run_mimic.py \
   --jobs auto
 ```
 
-`--jobs auto` uses up to eight worker processes. BLAS/OpenMP libraries are restricted to one thread inside each bootstrap worker to avoid CPU oversubscription. This affects runtime, not the estimand.
-
-The optimized bootstrap engine uses a numeric design matrix rather than rebuilding formulas for every replicate. The primary/secondary outcomes share one propensity-score fit per bootstrap replicate. Point-estimate definitions and target estimands are unchanged.
-
-### Inference-only resume mode
-
-A complete run can write a local patient-level checkpoint under `outputs/cache/mimic/<analysis_version>/`. This checkpoint never belongs in git and remains subject to MIMIC data-use restrictions.
+Save the timestamped run directory printed by the command:
 
 ```bash
-python scripts/rerun_inference.py \
-  outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ \
+export RUN_DIR=outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ
+```
+
+### 2. Apply the audited vital-sign correction
+
+The final v5.7 audit found that baseline temperature required reading-level Fahrenheit/Celsius normalization and that routine GCS/FiO2 measurement needed targeted reconstruction/audit. The accepted correction is kept as an explicit provenance stage rather than being hidden inside the historical base run.
+
+```bash
+python scripts/repair_v57_vital_covariates.py "$RUN_DIR" \
+  --config config/mimic.yaml
+```
+
+This writes the corrected patient-level analytic cohort locally under:
+
+```text
+$RUN_DIR/audits/vital_repair/analysis_cohort_vital_corrected.csv
+```
+
+That file is restricted analysis data and must not be committed or transported as a public artifact.
+
+### 3. Rerun final inference from the corrected cohort
+
+```bash
+python scripts/rerun_inference.py "$RUN_DIR" \
+  --config config/mimic.yaml \
+  --mode final \
+  --jobs auto \
+  --cohort-path "$RUN_DIR/audits/vital_repair/analysis_cohort_vital_corrected.csv" \
+  --label vital_corrected_final
+```
+
+**The manuscript primary/secondary, progressive-adjustment, and final weighting results come from this corrected `final_vital_corrected_final_*` inference rerun.** Do not substitute the pre-repair effect estimates in the base run directory.
+
+The base source-dependent run remains necessary for microbiology-membership and missing-stop-time sensitivities that cannot be reconstructed from an inference-only checkpoint.
+
+### Fast development mode
+
+For software development, the initial source-dependent run may be exercised with reduced bootstrap counts:
+
+```bash
+python scripts/run_mimic.py \
   --config config/mimic.yaml \
   --mode fast \
   --jobs auto
 ```
 
-Inference-only mode does not replace a complete source-dependent final run for microbiology and other source-level sensitivities.
+`--jobs auto` uses up to eight worker processes. BLAS/OpenMP libraries are restricted to one thread inside each bootstrap worker to avoid CPU oversubscription. This changes runtime only, not the estimand. Fast mode is not publication-quality inference.
+
+The optimized bootstrap engine uses a numeric design matrix rather than rebuilding formulas for every replicate. The primary/secondary outcomes share one propensity-score fit per bootstrap replicate, and the PS is refit within each bootstrap sample. See `src/sepsis_deescalation/fast_bootstrap.py` for the documented runtime-parity guardrails.
 
 ## PSU reproduction
 
@@ -156,12 +187,12 @@ Expected frozen parity targets and the rationale for each stage are listed in `d
 5. Freeze scientific definitions before looking at treatment-effect changes.
 6. Site-specific differences must be documented rather than silently forced into MIMIC semantics.
 7. Patient-level checkpoints and source data stay local and out of git/artifact transport.
-8. A software refactor of frozen PSU code must demonstrate parity on cohort counts, PS balance, ESS/weights, outcomes, point estimates, and bootstrap intervals before replacing the publication implementation.
+8. A software refactor of frozen publication code must demonstrate parity on the relevant cohort, feature, PS, outcome, point-estimate, and bootstrap outputs before replacing the accepted implementation.
 9. Overlap weighting is a different estimand (ATO) and must not silently replace the primary ATE.
 10. PSU should be described as a **modified external replication**, and its primary medication exposure as an ordered/systemic proxy rather than verified IV administration.
 
 ## Why historical audit scripts remain in the repository
 
-The many `audit_psu_*` scripts are intentional provenance. They record how ICU timing, microbiology, antibiotic mapping, route coding, laboratory clocks, MED_ADMIN timing, covariate availability, missingness, and outcome observability were evaluated before the final definitions were selected.
+The `audit_mimic_*` and `audit_psu_*` scripts are intentional provenance. They record how vital-unit semantics, ICU timing, microbiology, antibiotic mapping, route coding, laboratory clocks, MED_ADMIN timing, covariate availability, missingness, and outcome observability were evaluated before final definitions were selected.
 
-They are not all required for every reproduction run, but removing them would erase the evidence for several non-obvious data decisions. The reviewer walkthrough identifies which scripts are historical audits and which are final analysis entry points.
+They are not all required for every reproduction run, but removing them would erase the evidence for several non-obvious data decisions. The reviewer walkthroughs identify which scripts are historical audits and which are maintained publication entry points.
