@@ -1,27 +1,60 @@
 #!/usr/bin/env python3
-"""Run frozen PSU PS specification plus frozen outcomes and aggregate point estimates.
+"""Run the frozen PSU propensity model, frozen outcomes, and aggregate point estimates.
 
-This wrapper deliberately reuses the already frozen PS diagnostic source verbatim and
-injects outcome/effect aggregation only after PS fitting. No row-level or identifier
-artifacts are exported. No bootstrap inference is performed in this task.
+Scientific role
+---------------
+This is the primary treatment-effect entry point for the Penn State analysis. PSU is a
+*modified external replication*, not an exact replication of MIMIC-IV, because the PSU
+extract does not provide a validated day-3 culture-result-availability phenotype, exact
+ICU timing, or consistently verified IV route. The detailed differences and their
+rationale are documented in ``docs/psu_analysis_walkthrough.md`` and
+``docs/psu_crosswalk.md``.
+
+Why the implementation uses source injection
+--------------------------------------------
+The propensity-score pipeline in ``audit_psu_ps_balance.py`` was audited and frozen
+before treatment effects were inspected. To avoid creating a second, hand-copied PS
+implementation that could drift silently, this script reads that frozen source verbatim
+and inserts the outcome/effect block only after the frozen PS has been fit. The literal
+marker is a fail-closed parity guard: if the frozen PS source changes and the insertion
+point is no longer unique, execution stops.
+
+This mechanism is intentionally conservative for publication reproducibility. It is not
+presented as the ideal long-term software architecture. A future refactor into reusable
+functions is appropriate only after numerical parity with the frozen publication results
+is demonstrated.
+
+Data/privacy
+------------
+Patient identifiers and row-level analytic data remain in memory/on the approved local
+machine. This task writes aggregate effect estimates and diagnostics only. Bootstrap
+inference is intentionally separate in ``run_psu_bootstrap_inference.py``.
 """
 from __future__ import annotations
 
-import runpy
+import json
 from pathlib import Path
 
 
 INJECT = r'''
     # ---- frozen outcome construction and point-estimate block ----
-    # This executes only after the frozen PS has been fit. It does not alter exposure,
-    # covariates, imputation, model fitting, or the previously computed weights.
+    # This block starts only after the frozen PS has already been fit. It must not alter
+    # cohort membership, exposure classification, covariates, imputation, PS fitting,
+    # or the already-computed weights.
     con.execute("drop table if exists days_effects")
     con.execute("drop table if exists day_flags_effects")
     con.execute("drop table if exists day_triplets_effects")
     con.execute("drop table if exists abx_summary_effects")
     con.execute("drop table if exists outcomes_effects")
 
+    # PSU PRESCRIBING is an ordered-treatment source. The systemic-antibiotic proxy uses
+    # the frozen broad + non-broad mappings after excluding clearly non-systemic routes.
+    # We intentionally do not call this verified bedside administration or verified IV.
     any_systemic = f"(({broad}) or ({nonbroad}))"
+
+    # Follow-up begins at the same conceptual 96-h landmark as MIMIC. PSU medication
+    # intervals are date-level, so treatment burden is counted by calendar day rather
+    # than exact exposure hours. This is a documented harmonization limitation.
     con.execute("""
       create temp table days_effects as
       select c.patid,c.encounterid,
@@ -56,6 +89,11 @@ INJECT = r'''
              max(case when day_idx>=7 and day_idx<=27 and any_abx=1 and any_abx_d1=1 and any_abx_d2=1 then 1 else 0 end)::integer late_recurrent_or_persistent_abx_course_30d
       from day_triplets_effects group by 1,2
     """)
+
+    # Death and discharge are date-level in PSU. The cohort already requires survival
+    # and hospitalization through the strict 96-h landmark. Deaths within the next 30
+    # days are assigned zero hospital-free and antibiotic-free days, matching the MIMIC
+    # death-to-zero convention as closely as the PSU date resolution permits.
     con.execute("""
       create temp table outcomes_effects as
       select c.patid,c.encounterid,
@@ -94,6 +132,10 @@ INJECT = r'''
         raise RuntimeError("Outcome merge parity failure")
 
     # Prespecified weighting estimands/sensitivities.
+    # - stabilized_ate_iptw is the primary ATE analysis;
+    # - overlap weighting targets the overlap population and is a balance/positivity
+    #   sensitivity, not a replacement ATE;
+    # - 1/99 and 2.5/97.5 truncation are prespecified weight-robustness checks.
     ow=np.where(y==1,1.0-ps,ps)
     q01,q99=np.quantile(sw,[0.01,0.99]); tw_1_99=np.clip(sw,q01,q99)
     q025,q975=np.quantile(sw,[0.025,0.975]); tw_2p5_97p5=np.clip(sw,q025,q975)
@@ -127,6 +169,8 @@ INJECT = r'''
     effects=pd.DataFrame(erows)
     effects.to_csv(args.output_dir/"point_estimates.csv",index=False)
 
+    # Recompute post-weighting SMDs under every weighting method so each effect estimate
+    # is accompanied by its own overlap/balance diagnostic.
     wd=[]
     for method,(estimand,w) in methods.items():
         posts=[]
@@ -141,6 +185,8 @@ INJECT = r'''
     wdiag=pd.DataFrame(wd)
     wdiag.to_csv(args.output_dir/"effect_weighting_diagnostics.csv",index=False)
 
+    # Unadjusted values are exported for transparency only; they are not the causal
+    # estimand and should not replace the adjusted primary analysis.
     unadj=[]
     for outcome,kind in effect_outcomes:
         z=pd.to_numeric(df[outcome],errors="coerce").to_numpy(float)
@@ -177,6 +223,9 @@ def main() -> None:
     marker="    max_pre=float(bdf.abs_pre_smd.max()); max_post=float(bdf.abs_post_smd.max()); worst=str(bdf.iloc[0].variable)\n"
     if source.count(marker)!=1:
         raise RuntimeError("Frozen PS source marker missing or ambiguous")
+
+    # Fail closed: only a single known location may receive the frozen outcome/effect
+    # block. If this assertion fails, review the PS source rather than weakening it.
     source=source.replace(marker,INJECT+"\n"+marker,1)
     ns={"__name__":"__main__","__file__":str(source_path)}
     exec(compile(source,str(source_path),"exec"),ns,ns)
