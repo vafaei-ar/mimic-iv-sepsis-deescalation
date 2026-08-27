@@ -83,3 +83,18 @@ tasks:
       - outputs/publication_integration/harmonized/mimic_progressive_adjustment.csv
       - outputs/publication_integration/harmonized/weighting_diagnostics.csv
       - outputs/publication_integration/harmonized/publication_integration_summary.md
+
+  publication_manuscript_package:
+    description: Build manuscript-facing Results and Discussion text plus figure/table data from frozen harmonized aggregate outputs; no model refitting and no patient-level data.
+    command:
+      - .venv/bin/python
+      - scripts/build_manuscript_package.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/manuscript_package/manuscript_results_discussion_draft.md
+      - outputs/publication_integration/manuscript_package/figure2_mimic_progressive_adjustment.csv
+      - outputs/publication_integration/manuscript_package/figure4_mimic_psu_mortality.csv
+      - outputs/publication_integration/manuscript_package/table_main_secondary_outcomes.csv
