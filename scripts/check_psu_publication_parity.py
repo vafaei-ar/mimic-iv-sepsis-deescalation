@@ -62,16 +62,27 @@ def _close(observed: float, expected: float, tol: float) -> bool:
 
 
 def _record(checks: list[dict], name: str, observed, expected, tol=None) -> None:
+    """Append a JSON-safe parity check row.
+
+    pandas returns NumPy scalar types from CSV rows (for example ``np.int64``),
+    which the standard-library JSON encoder does not serialize automatically.
+    Normalize values to built-in Python ``int``/``float`` here so the parity
+    report cannot fail after the expensive real-data rerun has completed.
+    """
     if tol is None:
-        passed = int(observed) == int(expected)
+        observed_value = int(observed)
+        expected_value = int(expected)
+        passed = observed_value == expected_value
     else:
-        passed = _close(float(observed), float(expected), float(tol))
+        observed_value = float(observed)
+        expected_value = float(expected)
+        passed = _close(observed_value, expected_value, float(tol))
     checks.append(
         {
             "check": name,
-            "observed": float(observed) if isinstance(observed, (float, int)) else observed,
-            "expected": float(expected) if isinstance(expected, (float, int)) else expected,
-            "tolerance": tol,
+            "observed": observed_value,
+            "expected": expected_value,
+            "tolerance": None if tol is None else float(tol),
             "passed": bool(passed),
         }
     )
