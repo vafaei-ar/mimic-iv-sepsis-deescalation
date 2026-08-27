@@ -1,113 +1,130 @@
-# MIMIC-IV v5.7 freeze review
+# MIMIC-IV v5.7 final corrected freeze review
 
-This document records the review of the completed MIMIC-IV v5.7 package before manuscript lock and PSU external replication.
+This document records the final scientific/code-review status of the MIMIC-IV v5.7 analysis used in the manuscript. It replaces the earlier provisional freeze note that predated the vital-sign audit and corrected inference rerun.
 
-## Reviewed run
+## 1. Publication status
 
-- Run directory: `mimic_iv_v5_7_final_20260820T003506Z`
-- MIMIC-IV version: 3.1
-- Cohort: 9,589 admissions
-- De-escalated/stopped: 1,863
-- Continued broad-spectrum: 7,726
-- Deaths by 30-day horizon: 1,657
-- Run manifest commit: `54dbf4a487f980c95666058d5cad986f79a26982`
+The MIMIC scientific definitions are frozen for publication. The final corrected inference uses the established 96-hour landmark target-trial emulation, the day-3 result-availability microbiology phenotype, the frozen exposure definition, and the final audited propensity-score implementation.
 
-The run package is internally consistent across cohort flow, primary outcomes, progressive adjustment, mortality sensitivities, weight diagnostics, and final weighting sensitivities.
+The original v5.7 run directory is `mimic_iv_v5_7_final_20260820T003506Z`. Corrected inference was generated after the vital-sign audit without changing the target trial, exposure, outcomes, microbiology eligibility, or weighting estimands.
 
-## Primary estimand and main result
+Final analytic cohort:
 
-The primary estimand remains the ATE estimated with stabilized IPTW.
+- total: 9,589 admissions;
+- de-escalated/stopped: 1,863;
+- continued broad-spectrum: 7,726;
+- 30-day deaths after the 96-hour landmark: 1,657.
 
-- Weighted 30-day mortality, de-escalated/stopped: 0.176359
-- Weighted 30-day mortality, continued broad-spectrum: 0.175395
-- Risk difference: +0.000964 (+0.10 percentage points)
-- Risk ratio: 1.005499
-- Bootstrap 95% CI for RD: -0.042897 to +0.043607
+## 2. Why a corrected inference rerun was required
 
-The mortality analysis therefore does not support a claim of mortality benefit or harm.
+The initial v5.7 review found three measurement problems in candidate vital-sign covariates:
 
-## Progressive adjustment
+1. baseline temperature aggregation could mix Fahrenheit and Celsius values before patient-level aggregation;
+2. direct GCS extraction was non-informative in the saved cohort;
+3. direct FiO2 extraction was nearly constant and did not have sufficiently trustworthy source/unit semantics for the frozen PS.
 
-The apparent mortality advantage attenuates as clinical status, trajectories, and treatment intensity are added:
+These were treated as measurement-audit problems, not as opportunities to tune the treatment effect. Temperature handling was corrected at the reading level, and the demonstrably invalid/non-informative direct GCS and FiO2 covariates were excluded from the final corrected PS implementation. This exclusion was identified after the original model specification, so it must be described transparently as an audit-driven correction rather than as a prespecified modeling choice.
 
-| Model | RD | RR | max post-SMD |
-|---|---:|---:|---:|
-| M1 demographics/comorbidity | -0.041432 | 0.772489 | 0.013280 |
-| M2 + baseline severity/labs | -0.031895 | 0.823249 | 0.026551 |
-| M3 + near-decision clinical status | -0.024092 | 0.865404 | 0.027100 |
-| M4 + trajectories/intensity | +0.000964 | 1.005499 | 0.122087 |
+No outcome-driven covariate tuning was performed.
 
-This attenuation is an important substantive result and should be presented as evidence of strong confounding by clinical improvement and treatment intensity rather than as evidence that de-escalation reduces mortality.
+## 3. Primary MIMIC estimand and mortality result
 
-## Stewardship and recovery outcomes
+The primary estimand is the ATE estimated using stabilized inverse probability treatment weighting.
 
-The weighted analyses show lower antibiotic exposure and more hospital-/antibiotic-free days among de-escalated/stopped patients:
+Final corrected weighted 30-day mortality:
 
-- Hospital-free days: +1.319 days, 95% CI 0.141 to 2.444
-- Antibiotic-free days: +1.955 days, 95% CI 0.469 to 3.145
-- Normalized systemic antibiotic exposure: -0.1183, 95% CI -0.1388 to -0.0899
-- Normalized broad-spectrum exposure: -0.1692, 95% CI -0.1863 to -0.1413
+- de-escalated/stopped risk: 0.182995;
+- continued broad-spectrum risk: 0.174619;
+- risk difference (de-escalated minus continued): +0.008376, or +0.84 percentage points;
+- bootstrap 95% CI for the risk difference: -0.043903 to +0.056714;
+- risk ratio: 1.047966;
+- successful bootstrap replicates: 1,000.
 
-These outcomes are downstream of the treatment strategy and should be interpreted as treatment-burden/recovery measures, not as independent evidence of causal clinical benefit.
+The interval crosses the null widely. The MIMIC analysis therefore does not support a claim that day-3 de-escalation either lowers or increases 30-day mortality in the selected landmark population.
 
-The late recurrent/persistent antibiotic-course outcome remains exploratory because observation is affected by discharge timing.
+## 4. Progressive adjustment
 
-## Positivity and weighting sensitivity
+The progressive sequence is retained because it demonstrates how strongly the crude/apparently protective association depends on clinical-improvement and treatment-intensity adjustment.
 
-Primary stabilized IPTW has residual positivity/balance limitations:
+| Model | Mortality RD | Interpretation |
+|---|---:|---|
+| M1 demographics/comorbidity | -0.041432 | Strong apparent protective association with limited adjustment |
+| M2 + baseline severity/labs | -0.031895 | Association attenuates |
+| M3 + near-decision clinical status | -0.020128 | Further attenuation |
+| M4 + trajectories/intensity | +0.008376 | Final fully adjusted point estimate crosses to near-null/slightly positive |
 
-- max post-weighting SMD: 0.122087 (`temperature_48_72h`)
-- treated ESS: 672.3 / 1,863
-- continued ESS: 7,123.5 / 7,726
-- maximum weight: 25.38
+The M4 point estimate is identical to the primary corrected mortality point estimate. A later audit found that the separately generated progressive-M4 bootstrap CI differs slightly from the primary bootstrap CI despite the identical point estimate. The primary outcome file has explicit 1,000-replicate provenance, so manuscript reporting uses the primary mortality CI from `primary_secondary_outcomes.csv`. The progressive table is used to show attenuation of point estimates rather than to substitute a different M4 confidence interval.
 
-Sensitivity analyses:
+Do not choose between those CIs based on favorability.
 
-| Analysis | RD | RR | max post-SMD |
-|---|---:|---:|---:|
-| Overlap weighting | -0.013405 | 0.914626 | 0.053776 |
-| IPTW truncated 1/99 | -0.013174 | 0.924971 | 0.170405 |
-| IPTW truncated 2.5/97.5 | -0.016301 | 0.907428 | 0.250367 |
+## 5. Primary weighting diagnostics
 
-Overlap weighting improves balance substantially but targets the overlap population rather than the ATE. Truncation worsens measured balance. Neither should replace the primary ATE post hoc.
+Final stabilized IPTW diagnostics:
 
-## Mortality sensitivity analyses
+- maximum post-weighting absolute SMD: 0.132610;
+- worst-balanced covariate: `temp_48_72h`;
+- treated/de-escalated ESS: 613.96 of 1,863;
+- continued ESS: 7,119.58 of 7,726;
+- maximum stabilized weight: 30.86.
 
-- Narrowed/non-broad only vs continued: RD -0.025432, 95% CI -0.066774 to +0.018567
-- Stopped all observed systemic antibiotics vs continued: RD +0.019560, 95% CI -0.044193 to +0.092321
-- Excluding discharge within 24 h after landmark: RD -0.027874, 95% CI -0.127730 to +0.069928
-- Strict test-name culture-only: RD +0.000839, 95% CI -0.034769 to +0.043418
-- Eventual culture-negative: RD -0.021098, 95% CI -0.052926 to +0.013520
+These diagnostics indicate residual measured imbalance/limited effective sample size in the treated group. They must be reported as limitations. They do not invalidate the analysis, but they prevent describing the primary MIMIC weighting as having excellent balance.
 
-The eventual-culture-negative sensitivity reproduces the earlier approximately -2.1 percentage-point estimate, confirming that the old cohort definition was effectively an eventual-negativity phenotype.
+## 6. Weighting sensitivities
 
-## Freeze blocker found during final review
+These analyses were used as robustness checks, not as post hoc replacements for the primary ATE.
 
-The package should **not yet be declared fully frozen** because the baseline temperature covariate `temp_max_pre72` mixes Fahrenheit and Celsius values before aggregation.
+| Weighting analysis | Mortality RD | RR | Max post-SMD | Key interpretation |
+|---|---:|---:|---:|---|
+| Stabilized IPTW, primary ATE | +0.008376 | 1.04797 | 0.13261 | Primary estimand |
+| Overlap weighting, ATO | -0.009341 | 0.93912 | 0.05374 | Better measured balance but different target population |
+| IPTW truncated 1/99 | -0.010567 | 0.93955 | 0.17725 | Truncation changes weights and worsens measured balance |
+| IPTW truncated 2.5/97.5 | -0.014043 | 0.91987 | 0.25067 | More aggressive truncation further worsens measured balance |
 
-Evidence from the saved analytic cohort:
+Bootstrap 95% mortality intervals for these sensitivity estimands all cross the null:
 
-- `temp_max_pre72` range: 32.0 to 107.4
-- median: 99.6
-- 73 cohort rows have `temp_max_pre72 < 60`, indicating Celsius-scale maxima are present in a feature otherwise dominated by Fahrenheit-scale values
-- `temperature_48_72h` is already normalized to Celsius and has a clinically plausible range (approximately 35.1 to 41.1 C)
+- overlap RD: -0.043568 to +0.022547; RR: 0.740636 to 1.175857;
+- truncation 1/99 RD: -0.044087 to +0.023857; RR: 0.740636 to 1.181479;
+- truncation 2.5/97.5 RD: -0.044980 to +0.022547; RR: 0.740636 to 1.175857.
 
-This is a covariate-measurement problem in the propensity model, not an outcome/exposure-definition problem. A quick diagnostic transformation of values <60 from C to F moved the full-model mortality RD only modestly (about +0.10 pp to +0.22 pp), but the correct fix must operate on individual temperature readings before patient-level maxima are calculated because some stays may contain both Fahrenheit and Celsius observations.
+Overlap weighting should not silently replace the primary result because it estimates the overlap-population estimand rather than the ATE.
 
-Two additional vital features require verification before final lock:
+## 7. Secondary outcomes
 
-- `gcs_total_48_72h` is constant at 0 in the saved cohort and is therefore dropped from the PS fit; this likely reflects extraction/mapping rather than true clinical measurement.
-- `fio2_48_72h` is almost constant (median 1.0; only two distinct values in the saved cohort), so its source-item and unit semantics need confirmation.
+Final corrected primary IPTW estimates:
 
-A targeted audit script, `scripts/audit_mimic_vital_units.py`, was added to inspect the underlying MIMIC D_ITEMS/CHARTEVENTS labels and values without rerunning the full pipeline.
+| Outcome | Estimate | 95% bootstrap CI |
+|---|---:|---:|
+| Hospital-free days | +1.10181 days | -0.35003 to +2.86773 |
+| Antibiotic-free days | +1.75492 days | +0.32863 to +3.34471 |
+| Normalized systemic antibiotic exposure | -0.117022 | -0.137390 to -0.070591 |
+| Normalized broad-spectrum exposure | -0.168978 | -0.184525 to -0.125014 |
+| Late recurrent/persistent antibiotic-course risk | RD -0.070916 | -0.103739 to -0.019983 |
 
-## Freeze decision
+The antibiotic-burden outcomes are mechanically downstream of the treatment strategy and should be interpreted primarily as treatment separation/burden outcomes, not as independent proof of clinical benefit. The late recurrent/persistent course outcome is exploratory because discharge changes how long inpatient treatment can be observed.
 
-Current status: **provisionally locked for exposure, outcome, microbiology, landmark, and weighting definitions; not yet locked for the final covariate implementation.**
+## 8. Microbiology and time semantics
 
-Before manuscript lock and PSU harmonization, complete the targeted vital-unit audit and either:
+The MIMIC primary culture rule uses the information available by the 72-hour treatment decision: qualifying clinical microbiology must have been sampled and no positive clinical culture result may be available by day 3. Eventual specimen-based negativity is a sensitivity analysis rather than the primary rule.
 
-1. correct temperature/GCS/FiO2 extraction and rerun only the affected feature/inference stages; or
-2. remove a demonstrably invalid/non-informative feature from the harmonized PS specification with a documented rationale, then rerun inference.
+Treatment is classified during 72-96 hours after the first qualifying broad-spectrum exposure, and outcome follow-up starts at the 96-hour landmark. This is therefore a 96-hour landmark estimand, not an estimand for every patient who is alive at 72 hours.
 
-Do not tune any correction based on whether it makes the mortality estimate more favorable.
+## 9. Propensity-score implementation guardrails
+
+The final PS implementation follows these frozen rules:
+
+- continuous covariates are median-imputed, standardized, and clipped to +/-8;
+- binary covariates are filled with 0;
+- no missingness indicators are added to the primary model;
+- duplicate PS variables identified during v5.7 review are removed;
+- the denominator model uses binomial GLM with the documented small-ridge regularized fallback only when needed;
+- treatment probabilities are clipped to [0.001, 0.999];
+- stabilized IPTW is the primary weighting scheme;
+- bootstrap inference refits the PS within each resample.
+
+Do not add rank-pruning, new missingness indicators, new trimming thresholds, alternate ML propensity models, or additional covariates after seeing treatment effects unless explicitly labeled as a new post-publication analysis.
+
+## 10. Final interpretation
+
+The final MIMIC result is best summarized as follows: the apparent protective mortality association seen with limited adjustment disappears after accounting for near-decision clinical status, trajectories, and treatment/diagnostic intensity. Day-3 de-escalation is associated with lower antibiotic burden, but the fully adjusted mortality estimate is compatible with both modest benefit and modest harm.
+
+This is the frozen MIMIC result that should be compared with the PSU modified external replication.
