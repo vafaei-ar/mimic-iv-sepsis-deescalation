@@ -98,3 +98,27 @@ tasks:
       - outputs/publication_integration/manuscript_package/figure2_mimic_progressive_adjustment.csv
       - outputs/publication_integration/manuscript_package/figure4_mimic_psu_mortality.csv
       - outputs/publication_integration/manuscript_package/table_main_secondary_outcomes.csv
+
+  publication_nature_package:
+    description: Build Nature Portfolio and Nature Communications-compatible manuscript, cover letter, checklist, Extended Data plan, word counts, and publication figures from frozen aggregate outputs only.
+    command:
+      - .venv/bin/python
+      - scripts/build_nature_publication_package.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/nature_package/nature_manuscript.md
+      - outputs/publication_integration/nature_package/nature_cover_letter.md
+      - outputs/publication_integration/nature_package/nature_submission_checklist.md
+      - outputs/publication_integration/nature_package/nature_extended_data_plan.md
+      - outputs/publication_integration/nature_package/nature_wordcounts.csv
+      - outputs/publication_integration/nature_package/figure1_target_trial_timeline.png
+      - outputs/publication_integration/nature_package/figure1_target_trial_timeline.pdf
+      - outputs/publication_integration/nature_package/figure2_mimic_progressive_adjustment.png
+      - outputs/publication_integration/nature_package/figure2_mimic_progressive_adjustment.pdf
+      - outputs/publication_integration/nature_package/figure3_cross_dataset_mortality.png
+      - outputs/publication_integration/nature_package/figure3_cross_dataset_mortality.pdf
+      - outputs/publication_integration/nature_package/figure4_stewardship_outcomes.png
+      - outputs/publication_integration/nature_package/figure4_stewardship_outcomes.pdf
