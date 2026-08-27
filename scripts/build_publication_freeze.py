@@ -77,9 +77,12 @@ def main() -> None:
 
     primary = pd.read_csv(primary_path)
     progressive = pd.read_csv(progressive_path)
-    weighting_point = pd.read_csv(weighting_point_path)
-    weighting_ci = pd.read_csv(weighting_ci_path)
-    weighting_diag = pd.read_csv(weighting_diag_path)
+    # The three weighting files are required publication artifacts and are copied below.
+    # We only need to verify that they are readable here; their contents are not used to
+    # derive the primary-vs-M4 CI audit.
+    pd.read_csv(weighting_point_path)
+    pd.read_csv(weighting_ci_path)
+    pd.read_csv(weighting_diag_path)
 
     mort = primary.loc[primary["analysis"] == "30-day mortality"].iloc[0]
     afd = primary.loc[primary["analysis"] == "antibiotic-free days"].iloc[0]
