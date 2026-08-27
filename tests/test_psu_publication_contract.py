@@ -94,8 +94,14 @@ def test_parity_report_rows_are_json_safe_for_numpy_scalars():
     checks = []
     parity._record(checks, "integer", np.int64(19841), 19841)
     parity._record(checks, "float", np.float64(-0.0256), -0.0256, 1e-6)
-    # This reproduces the failure mode seen after the first expensive parity run:
-    # standard-library json must be able to serialize the completed report rows.
     json.dumps({"checks": checks})
     assert checks[0]["observed"] == 19841
     assert checks[1]["passed"] is True
+
+
+def test_parity_tolerances_are_narrow_and_frozen():
+    """Prevent a future edit from silently weakening the real-data parity contract."""
+    parity = _load_script_module("check_psu_publication_parity.py")
+    assert parity.POINT_ATOL == 1e-5
+    assert parity.BOOTSTRAP_RD_ATOL == 0.001
+    assert parity.BOOTSTRAP_RR_ATOL == 0.005
