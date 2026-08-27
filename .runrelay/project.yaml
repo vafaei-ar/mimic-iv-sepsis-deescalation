@@ -172,3 +172,39 @@ tasks:
       - outputs/publication_integration/reviewer_support/ESM_Fig1_mimic_balance_love.pdf
       - outputs/publication_integration/reviewer_support/ESM_Fig2_mimic_ps_weights.png
       - outputs/publication_integration/reviewer_support/ESM_Fig2_mimic_ps_weights.pdf
+
+  publication_reviewer_subtype_narrowed:
+    description: Run only the exploratory 1000-replicate MIMIC narrowing/non-broad versus continued-broad mortality sensitivity; no change to the frozen primary analysis.
+    command:
+      - .venv/bin/python
+      - scripts/run_reviewer_subtype_sensitivity.py
+      - --contrast
+      - narrowed
+      - --reps
+      - "1000"
+    approval: manual
+    timeout_minutes: 120
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_narrowed_adjusted_mortality.csv
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_narrowed_bootstrap_diagnostics.csv
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_narrowed_metadata.json
+
+  publication_reviewer_subtype_stopped:
+    description: Run only the exploratory 1000-replicate MIMIC complete-stopping versus continued-broad mortality sensitivity; no change to the frozen primary analysis.
+    command:
+      - .venv/bin/python
+      - scripts/run_reviewer_subtype_sensitivity.py
+      - --contrast
+      - stopped
+      - --reps
+      - "1000"
+    approval: manual
+    timeout_minutes: 120
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_adjusted_mortality.csv
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_bootstrap_diagnostics.csv
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_metadata.json
