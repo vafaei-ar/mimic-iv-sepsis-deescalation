@@ -148,7 +148,7 @@ tasks:
     description: Generate reviewer-support aggregates and revised publication figures from the frozen final MIMIC cohort and harmonized aggregate outputs; includes exploratory narrowing-versus-stopping sensitivities but does not alter the frozen primary estimand.
     command:
       - .venv/bin/python
-      - scripts/build_reviewer_support_package.py
+      - scripts/build_reviewer_support_package_fast.py
     approval: manual
     timeout_minutes: 90
     requires_gpu: false
@@ -157,6 +157,7 @@ tasks:
       - outputs/publication_integration/reviewer_support/mimic_cohort_flow_reviewer.csv
       - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_descriptives.csv
       - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_adjusted_mortality.csv
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_bootstrap_diagnostics.csv
       - outputs/publication_integration/reviewer_support/mimic_primary_balance_before_after.csv
       - outputs/publication_integration/reviewer_support/mimic_ps_weight_quantiles.csv
       - outputs/publication_integration/reviewer_support/reviewer_support_summary.md
