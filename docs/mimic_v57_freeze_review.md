@@ -112,14 +112,16 @@ Treatment is classified during 72-96 hours after the first qualifying broad-spec
 
 The final PS implementation follows these frozen rules:
 
-- continuous covariates are median-imputed, standardized, and clipped to +/-8;
+- in PS preparation, continuous covariates are filled with the analysis-sample mean, standardized using that mean and population SD, and clipped to +/-8;
 - binary covariates are filled with 0;
-- no missingness indicators are added to the primary model;
+- the PS-preparation function does not create new missingness indicators; any explicitly modeled missingness flags come from upstream feature construction and the frozen variable list;
 - duplicate PS variables identified during v5.7 review are removed;
 - the denominator model uses binomial GLM with the documented small-ridge regularized fallback only when needed;
 - treatment probabilities are clipped to [0.001, 0.999];
 - stabilized IPTW is the primary weighting scheme;
 - bootstrap inference refits the PS within each resample.
+
+Some upstream feature-construction functions use their own frozen source-layer imputation before PS preparation. The statement above describes the final PS-preparation behavior in `src/sepsis_deescalation/stats.py` and should not be replaced by a blanket claim of median imputation.
 
 Do not add rank-pruning, new missingness indicators, new trimming thresholds, alternate ML propensity models, or additional covariates after seeing treatment effects unless explicitly labeled as a new post-publication analysis.
 
