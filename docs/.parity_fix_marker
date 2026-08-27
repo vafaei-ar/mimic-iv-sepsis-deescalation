@@ -1,1 +1,0 @@
-The first end-to-end PSU publication parity run completed the expensive analysis stages but failed while JSON-serializing a pandas/NumPy int64 in the final report. The parity checker now normalizes observed/expected values to built-in Python int/float types before JSON output, and public CI includes a regression test for this failure mode.
