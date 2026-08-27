@@ -67,3 +67,19 @@ tasks:
     artifacts:
       - outputs/publication_integration/source_snapshot/publication_source_snapshot.json
       - outputs/publication_integration/source_snapshot/publication_source_files.csv
+
+  publication_harmonized_tables:
+    description: Build manuscript-facing harmonized MIMIC-IV and PSU tables from the frozen aggregate source snapshot; no model refitting and no patient-level data.
+    command:
+      - .venv/bin/python
+      - scripts/build_publication_integration.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/harmonized/harmonized_mortality_results.csv
+      - outputs/publication_integration/harmonized/harmonized_secondary_outcomes.csv
+      - outputs/publication_integration/harmonized/mimic_progressive_adjustment.csv
+      - outputs/publication_integration/harmonized/weighting_diagnostics.csv
+      - outputs/publication_integration/harmonized/publication_integration_summary.md
