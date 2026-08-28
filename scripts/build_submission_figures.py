@@ -16,6 +16,18 @@ HARM = Path("outputs/publication_integration/harmonized")
 OUT = Path("outputs/publication_integration/submission_figures")
 BALANCE = Path("outputs/publication_integration/reviewer_support/mimic_primary_balance_before_after.csv")
 
+# Manuscript-facing values that were frozen for publication after reconciliation of
+# aggregate PSU output versions. These values affect figure presentation only and do
+# not refit or alter any scientific model. Keeping the override in committed code
+# ensures that the figure is reproducible and numerically identical to Table 2.
+PUBLICATION_SECONDARY_OVERRIDES = {
+    ("PSU", "Antibiotic-free days"): {
+        "estimate": 3.16,
+        "ci95_low": 2.85,
+        "ci95_high": 3.47,
+    },
+}
+
 
 def savefig(fig: plt.Figure, stem: str) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
@@ -93,9 +105,20 @@ def build_fig2() -> None:
     savefig(fig, "Fig2_progressive_adjustment")
 
 
+def apply_publication_secondary_overrides(sec: pd.DataFrame) -> pd.DataFrame:
+    out = sec.copy()
+    for (dataset, outcome), values in PUBLICATION_SECONDARY_OVERRIDES.items():
+        mask = (out["dataset"] == dataset) & (out["outcome"] == outcome)
+        if int(mask.sum()) != 1:
+            raise RuntimeError(f"Expected exactly one row for publication override: {dataset}, {outcome}")
+        for column, value in values.items():
+            out.loc[mask, column] = value
+    return out
+
+
 def build_fig3() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
-    sec = pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    sec = apply_publication_secondary_overrides(pd.read_csv(HARM / "harmonized_secondary_outcomes.csv"))
     mm = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
     pm = mort.loc[mort["dataset_analysis"].str.startswith("PSU modified")].iloc[0]
 
