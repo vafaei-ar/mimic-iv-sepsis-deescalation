@@ -19,6 +19,27 @@ def savefig(fig: plt.Figure, stem: str) -> None:
     plt.close(fig)
 
 
+def df_to_markdown(df: pd.DataFrame) -> str:
+    """Render a simple GitHub-flavored Markdown table without optional tabulate."""
+    shown = df.copy()
+    headers = [str(c) for c in shown.columns]
+
+    def fmt(v) -> str:
+        if pd.isna(v):
+            return ""
+        if isinstance(v, (float, np.floating)):
+            return f"{float(v):.6g}"
+        return str(v).replace("|", "\\|").replace("\n", " ")
+
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    for row in shown.itertuples(index=False, name=None):
+        lines.append("| " + " | ".join(fmt(v) for v in row) + " |")
+    return "\n".join(lines)
+
+
 def build_fig1() -> None:
     fig, ax = plt.subplots(figsize=(9.2, 2.8))
     ax.set_xlim(-6, 126)
@@ -134,7 +155,7 @@ def build_summary(sub: pd.DataFrame) -> None:
     desc = pd.read_csv(OUT / "mimic_deescalation_subtype_descriptives.csv")
     narrowed = desc.loc[desc["deescalation_type"] == "narrowed_or_non_broad_only"].iloc[0]
     stopped = desc.loc[desc["deescalation_type"] == "stopped_all_observed_systemic_antibiotics"].iloc[0]
-    text = f"""# Final reviewer-support package\n\nThe frozen primary MIMIC-IV and Penn State analyses are unchanged. New treatment-subtype analyses are exploratory only.\n\n## De-escalation composition\n- Narrowed/non-broad only: {int(narrowed['n']):,} ({narrowed['percent_within_deescalated']:.1f}% of de-escalated/stopped).\n- Stopped all observed systemic antibiotics: {int(stopped['n']):,} ({stopped['percent_within_deescalated']:.1f}% of de-escalated/stopped).\n\n## Exploratory subtype mortality sensitivities\n{sub.to_markdown(index=False)}\n\nThe complete-stopping contrast has materially poorer overlap and a very low treated effective sample size, so it should be interpreted cautiously and retained in supplementary material rather than used as a separate causal claim.\n\n## Cohort flow\n{flow.to_markdown(index=False)}\n"""
+    text = f"""# Final reviewer-support package\n\nThe frozen primary MIMIC-IV and Penn State analyses are unchanged. New treatment-subtype analyses are exploratory only.\n\n## De-escalation composition\n- Narrowed/non-broad only: {int(narrowed['n']):,} ({narrowed['percent_within_deescalated']:.1f}% of de-escalated/stopped).\n- Stopped all observed systemic antibiotics: {int(stopped['n']):,} ({stopped['percent_within_deescalated']:.1f}% of de-escalated/stopped).\n\n## Exploratory subtype mortality sensitivities\n{df_to_markdown(sub)}\n\nThe complete-stopping contrast has materially poorer overlap and a very low treated effective sample size, so it should be interpreted cautiously and retained in supplementary material rather than used as a separate causal claim.\n\n## Cohort flow\n{df_to_markdown(flow)}\n"""
     (OUT / "reviewer_support_final_summary.md").write_text(text, encoding="utf-8")
     metadata = {
         "primary_science_changed": False,
