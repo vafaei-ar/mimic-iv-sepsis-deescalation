@@ -208,3 +208,23 @@ tasks:
       - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_adjusted_mortality.csv
       - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_bootstrap_diagnostics.csv
       - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_stopped_metadata.json
+
+  publication_reviewer_final_assets:
+    description: Combine completed reviewer-support subtype outputs and build final publication figures from frozen aggregate results; no model fitting or primary-analysis changes.
+    command:
+      - .venv/bin/python
+      - scripts/build_reviewer_final_assets.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/reviewer_support/mimic_deescalation_subtype_adjusted_mortality_combined.csv
+      - outputs/publication_integration/reviewer_support/reviewer_support_final_summary.md
+      - outputs/publication_integration/reviewer_support/reviewer_support_final_metadata.json
+      - outputs/publication_integration/reviewer_support/Fig1_target_trial_timeline_final.png
+      - outputs/publication_integration/reviewer_support/Fig1_target_trial_timeline_final.pdf
+      - outputs/publication_integration/reviewer_support/Fig2_progressive_adjustment_final.png
+      - outputs/publication_integration/reviewer_support/Fig2_progressive_adjustment_final.pdf
+      - outputs/publication_integration/reviewer_support/Fig3_cross_dataset_outcomes_final.png
+      - outputs/publication_integration/reviewer_support/Fig3_cross_dataset_outcomes_final.pdf
