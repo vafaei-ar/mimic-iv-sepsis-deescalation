@@ -228,3 +228,24 @@ tasks:
       - outputs/publication_integration/reviewer_support/Fig2_progressive_adjustment_final.pdf
       - outputs/publication_integration/reviewer_support/Fig3_cross_dataset_outcomes_final.png
       - outputs/publication_integration/reviewer_support/Fig3_cross_dataset_outcomes_final.pdf
+
+  publication_submission_figures:
+    description: Rebuild all manuscript and ESM figures used in the clean ICM submission from committed code and frozen inputs; no primary outcome or bootstrap inference is rerun.
+    command:
+      - .venv/bin/python
+      - scripts/build_submission_figures.py
+    approval: manual
+    timeout_minutes: 15
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/submission_figures/Fig1_target_trial_timeline.png
+      - outputs/publication_integration/submission_figures/Fig1_target_trial_timeline.pdf
+      - outputs/publication_integration/submission_figures/Fig2_progressive_adjustment.png
+      - outputs/publication_integration/submission_figures/Fig2_progressive_adjustment.pdf
+      - outputs/publication_integration/submission_figures/Fig3_cross_dataset_outcomes.png
+      - outputs/publication_integration/submission_figures/Fig3_cross_dataset_outcomes.pdf
+      - outputs/publication_integration/submission_figures/ESM_Fig1_mimic_balance_love.png
+      - outputs/publication_integration/submission_figures/ESM_Fig1_mimic_balance_love.pdf
+      - outputs/publication_integration/submission_figures/ESM_Fig2_mimic_ps_weights.png
+      - outputs/publication_integration/submission_figures/ESM_Fig2_mimic_ps_weights.pdf
