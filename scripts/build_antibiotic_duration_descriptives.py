@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MIMIC = ROOT / "outputs/mimic/mimic_iv_v5_7_final_20260820T003506Z/audits/vital_repair/analysis_cohort_vital_corrected.csv"
 PSU = ROOT / "outputs/psu_publication_parity/latest/outcome_freeze/outcome_overall_summary.csv"
 OUT = ROOT / "outputs/publication_integration/clinical_duration"
+REVIEWER_SUMMARY = ROOT / "outputs/publication_integration/reviewer_support/reviewer_support_final_summary.md"
 
 EXPECTED_MIMIC_N = 9589
 EXPECTED_MIMIC_DEESC = 1863
@@ -108,6 +109,20 @@ def main() -> None:
         "interpretation_guardrail": "These are observed antibiotic-exposure days after the 96-hour landmark, not necessarily uninterrupted total course duration.",
     }
     (OUT / "antibiotic_duration_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+    if REVIEWER_SUMMARY.exists():
+        display = out[["dataset", "group", "n", "mean_days", "sd_days", "p25_days", "median_days", "p75_days"]].copy()
+        lines = [
+            "\n## Clinically interpretable antibiotic-duration descriptors\n",
+            "These values count calendar days with observed systemic antibiotic exposure during the 30-day period after the 96-hour landmark; they are not necessarily uninterrupted total course durations.\n",
+            "| Dataset | Group | n | Mean days | SD | P25 | Median | P75 |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+        for r in display.itertuples(index=False):
+            lines.append(f"| {r.dataset} | {r.group} | {int(r.n):,} | {r.mean_days:.2f} | {r.sd_days:.2f} | {r.p25_days:.1f} | {r.median_days:.1f} | {r.p75_days:.1f} |")
+        with REVIEWER_SUMMARY.open("a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+
     print(out.to_string(index=False))
 
 
