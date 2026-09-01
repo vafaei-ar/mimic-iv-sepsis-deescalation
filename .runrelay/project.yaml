@@ -249,3 +249,17 @@ tasks:
       - outputs/publication_integration/submission_figures/ESM_Fig1_mimic_balance_love.pdf
       - outputs/publication_integration/submission_figures/ESM_Fig2_mimic_ps_weights.png
       - outputs/publication_integration/submission_figures/ESM_Fig2_mimic_ps_weights.pdf
+
+  publication_antibiotic_duration_descriptives:
+    description: Summarize clinically interpretable post-landmark systemic antibiotic exposure days from the frozen MIMIC cohort and frozen PSU aggregate outcome summary; no model refitting or bootstrap rerun.
+    command:
+      - .venv/bin/python
+      - scripts/build_antibiotic_duration_descriptives.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/clinical_duration/antibiotic_duration_descriptives.csv
+      - outputs/publication_integration/clinical_duration/antibiotic_duration_metadata.json
+      - outputs/publication_integration/reviewer_support/reviewer_support_final_summary.md
