@@ -263,3 +263,18 @@ tasks:
       - outputs/publication_integration/clinical_duration/antibiotic_duration_descriptives.csv
       - outputs/publication_integration/clinical_duration/antibiotic_duration_metadata.json
       - outputs/publication_integration/reviewer_support/reviewer_support_final_summary.md
+
+  psu_facilityid_audit:
+    description: Read the restricted PSU ADMISSION source locally and emit only aggregate FACILITYID counts to identify contributing facilities; no patient- or encounter-level artifacts.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_facilities.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output
+      - outputs/publication_integration/psu_facility_audit/facilityid_summary.json
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/psu_facility_audit/facilityid_summary.json
