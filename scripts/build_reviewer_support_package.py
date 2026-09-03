@@ -16,6 +16,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from publication_figure_common import (
+    apply_publication_secondary_overrides,
+    prepare_progressive_mortality,
+    pretty_label,
+    shared_histogram_edges,
+)
 from sepsis_deescalation.specification import CANDIDATE_PS_VARS
 from sepsis_deescalation.stats import (
     balance_table,
@@ -180,16 +186,32 @@ def diagnostics(w: pd.DataFrame, bal: pd.DataFrame) -> None:
     ax.scatter(top["after"], y, marker="s", label="After weighting")
     ax.axvline(0.1, linestyle="--", linewidth=1)
     ax.set_yticks(y)
-    ax.set_yticklabels(top["variable"], fontsize=7.5)
+    ax.set_yticklabels([pretty_label(v) for v in top["variable"]], fontsize=7.5)
     ax.set_xlabel("Absolute standardized mean difference")
     ax.set_title("MIMIC-IV primary covariate balance")
     ax.legend(frameon=False)
     savefig(fig, "ESM_Fig1_mimic_balance_love")
 
+    ps_edges = np.linspace(0, 1, 31)
+    weight_edges = shared_histogram_edges(
+        [w.loc[w["A"] == 1, "SW_A"], w.loc[w["A"] == 0, "SW_A"]], bins=30
+    )
     fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.6))
     for a, label in [(1, "De-escalated/stopped"), (0, "Continued broad")]:
-        axes[0].hist(w.loc[w["A"] == a, "ps_den"], bins=np.linspace(0, 1, 31), histtype="step", linewidth=1.5, label=label)
-        axes[1].hist(w.loc[w["A"] == a, "SW_A"], bins=30, histtype="step", linewidth=1.5, label=label)
+        axes[0].hist(
+            w.loc[w["A"] == a, "ps_den"].to_numpy(float),
+            bins=ps_edges,
+            histtype="step",
+            linewidth=1.5,
+            label=label,
+        )
+        axes[1].hist(
+            w.loc[w["A"] == a, "SW_A"].to_numpy(float),
+            bins=weight_edges,
+            histtype="step",
+            linewidth=1.5,
+            label=label,
+        )
     axes[0].set_xlabel("Estimated propensity for de-escalation")
     axes[0].set_ylabel("Admissions")
     axes[0].set_title("Propensity-score overlap")
@@ -204,10 +226,11 @@ def diagnostics(w: pd.DataFrame, bal: pd.DataFrame) -> None:
 
 def revised_main_figures() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
-    sec = pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    sec = apply_publication_secondary_overrides(
+        pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    )
     prog = pd.read_csv(HARM / "mimic_progressive_adjustment.csv")
 
-    # Fig 1: simplified, larger typography.
     fig, ax = plt.subplots(figsize=(9.2, 2.6))
     ax.set_xlim(-4, 125); ax.set_ylim(-1.0, 1.0); ax.axis("off")
     ax.annotate("", xy=(120, 0), xytext=(0, 0), arrowprops=dict(arrowstyle="->", linewidth=2))
@@ -228,15 +251,11 @@ def revised_main_figures() -> None:
     ax.text(108, -0.58, "Outcome follow-up", ha="center", fontsize=9)
     savefig(fig, "Fig1_target_trial_timeline_revised")
 
-    # Fig 2: progressive forest, but use designated primary CI for M4 presentation.
-    p = prog.copy()
-    mprimary = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
-    last = p.index[-1]
-    p.loc[last, "rd_lower_95"] = mprimary["rd_ci95_low"]
-    p.loc[last, "rd_upper_95"] = mprimary["rd_ci95_high"]
+    p = prepare_progressive_mortality(mort, prog)
     labels = ["M1  Demographics/comorbidity", "M2  + baseline severity", "M3  + day-3 clinical status", "M4  + trajectories/intensity"]
-    est = 100 * p["risk_difference"].to_numpy()
-    lo = 100 * p["rd_lower_95"].to_numpy(); hi = 100 * p["rd_upper_95"].to_numpy()
+    est = 100 * p["risk_difference"].to_numpy(float)
+    lo = 100 * p["rd_lower_95"].to_numpy(float)
+    hi = 100 * p["rd_upper_95"].to_numpy(float)
     y = np.arange(len(p))[::-1]
     fig, ax = plt.subplots(figsize=(7.6, 4.2))
     ax.errorbar(est, y, xerr=[est-lo, hi-est], fmt="o", capsize=3, linewidth=1.5)
@@ -248,7 +267,6 @@ def revised_main_figures() -> None:
         ax.text(x + 0.22, yy, f"{x:+.2f}", va="center", fontsize=8.5)
     savefig(fig, "Fig2_progressive_adjustment_revised")
 
-    # Fig 3: four forest-style panels with separate units/scales.
     outcomes = [
         ("mortality", "30-day post-landmark mortality RD", "percentage points"),
         ("Antibiotic-free days", "Antibiotic-free days", "days"),
@@ -261,12 +279,14 @@ def revised_main_figures() -> None:
     for j, (key, title, unit) in enumerate(outcomes):
         ax = axes[j]
         if key == "mortality":
-            vals = np.array([100*mm["mortality_rd"], 100*pm["mortality_rd"]])
-            los = np.array([100*mm["rd_ci95_low"], 100*pm["rd_ci95_low"]])
-            his = np.array([100*mm["rd_ci95_high"], 100*pm["rd_ci95_high"]])
+            vals = np.array([100*mm["mortality_rd"], 100*pm["mortality_rd"]], dtype=float)
+            los = np.array([100*mm["rd_ci95_low"], 100*pm["rd_ci95_low"]], dtype=float)
+            his = np.array([100*mm["rd_ci95_high"], 100*pm["rd_ci95_high"]], dtype=float)
         else:
             s = sec.loc[sec["outcome"] == key].set_index("dataset").loc[["MIMIC-IV", "PSU"]]
-            vals = s["estimate"].to_numpy(float); los = s["ci95_low"].to_numpy(float); his = s["ci95_high"].to_numpy(float)
+            vals = s["estimate"].to_numpy(float)
+            los = s["ci95_low"].to_numpy(float)
+            his = s["ci95_high"].to_numpy(float)
         yy = np.array([1, 0])
         ax.errorbar(vals, yy, xerr=[vals-los, his-vals], fmt="o", capsize=3, linewidth=1.4)
         ax.axvline(0, linestyle="--", linewidth=1)
