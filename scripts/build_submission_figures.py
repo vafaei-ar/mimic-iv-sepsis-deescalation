@@ -7,6 +7,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from publication_figure_common import (
+    apply_publication_secondary_overrides,
+    prepare_progressive_mortality,
+    pretty_label,
+    shared_histogram_edges,
+)
 from sepsis_deescalation.specification import CANDIDATE_PS_VARS
 from sepsis_deescalation.stats import fit_stabilized_iptw
 
@@ -15,18 +21,6 @@ COHORT = BASE_RUN / "audits/vital_repair/analysis_cohort_vital_corrected.csv"
 HARM = Path("outputs/publication_integration/harmonized")
 OUT = Path("outputs/publication_integration/submission_figures")
 BALANCE = Path("outputs/publication_integration/reviewer_support/mimic_primary_balance_before_after.csv")
-
-# Manuscript-facing values that were frozen for publication after reconciliation of
-# aggregate PSU output versions. These values affect figure presentation only and do
-# not refit or alter any scientific model. Keeping the override in committed code
-# ensures that the figure is reproducible and numerically identical to Table 2.
-PUBLICATION_SECONDARY_OVERRIDES = {
-    ("PSU", "Antibiotic-free days"): {
-        "estimate": 3.16,
-        "ci95_low": 2.85,
-        "ci95_high": 3.47,
-    },
-}
 
 
 def savefig(fig: plt.Figure, stem: str) -> None:
@@ -65,11 +59,7 @@ def build_fig1() -> None:
 def build_fig2() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
     prog = pd.read_csv(HARM / "mimic_progressive_adjustment.csv")
-    primary = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
-    p = prog.copy()
-    last = p.index[-1]
-    p.loc[last, "rd_lower_95"] = primary["rd_ci95_low"]
-    p.loc[last, "rd_upper_95"] = primary["rd_ci95_high"]
+    p = prepare_progressive_mortality(mort, prog)
 
     labels = [
         "M1  Demographics/comorbidity",
@@ -91,7 +81,6 @@ def build_fig2() -> None:
     ax.set_xlabel("30-day post-landmark mortality risk difference, percentage points")
     ax.set_title("Progressive adjustment in MIMIC-IV")
 
-    # Keep estimate and CI text clear of the confidence-interval line.
     for x, l, h, yy in zip(est, lo, hi, y):
         ax.annotate(
             f"{x:+.2f} ({l:+.2f}, {h:+.2f})",
@@ -105,20 +94,11 @@ def build_fig2() -> None:
     savefig(fig, "Fig2_progressive_adjustment")
 
 
-def apply_publication_secondary_overrides(sec: pd.DataFrame) -> pd.DataFrame:
-    out = sec.copy()
-    for (dataset, outcome), values in PUBLICATION_SECONDARY_OVERRIDES.items():
-        mask = (out["dataset"] == dataset) & (out["outcome"] == outcome)
-        if int(mask.sum()) != 1:
-            raise RuntimeError(f"Expected exactly one row for publication override: {dataset}, {outcome}")
-        for column, value in values.items():
-            out.loc[mask, column] = value
-    return out
-
-
 def build_fig3() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
-    sec = apply_publication_secondary_overrides(pd.read_csv(HARM / "harmonized_secondary_outcomes.csv"))
+    sec = apply_publication_secondary_overrides(
+        pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    )
     mm = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
     pm = mort.loc[mort["dataset_analysis"].str.startswith("PSU modified")].iloc[0]
 
@@ -175,65 +155,6 @@ def build_fig3() -> None:
     savefig(fig, "Fig3_cross_dataset_outcomes")
 
 
-PRETTY_LABELS = {
-    "broad_abx_hours_pre72": "Broad-spectrum antibiotic hours, pre-72 h",
-    "systemic_abx_hours_pre72": "Systemic antibiotic hours, pre-72 h",
-    "antipseudomonal_pre72": "Antipseudomonal therapy, pre-72 h",
-    "broad_abx_agents_pre72": "Broad-spectrum agents, pre-72 h",
-    "micro_records_pre72": "Microbiology records, pre-72 h",
-    "anaerobic_coverage_pre72": "Anaerobic coverage, pre-72 h",
-    "strict_culture_records_pre72": "Culture records, pre-72 h",
-    "carbapenem_pre72": "Carbapenem use, pre-72 h",
-    "distinct_specimen_types_pre72": "Distinct specimen types, pre-72 h",
-    "cardiac_icu": "Cardiac ICU",
-    "respiratory_culture_pre72": "Respiratory culture, pre-72 h",
-    "temperature_48_72h": "Temperature, 48-72 h",
-    "vent_proc": "Mechanical ventilation procedure",
-    "sterile_fluid_culture_pre72": "Sterile-fluid culture, pre-72 h",
-    "sofa_like_change_pre72": "SOFA-like change, pre-72 h",
-    "sofa_like_48_72h": "SOFA-like score, 48-72 h",
-    "fever_last12h_pre72": "Fever in prior 12 h, pre-72 h",
-    "repeat_micro_48_72h": "Repeat microbiology, 48-72 h",
-    "blood_culture_pre72": "Blood culture, pre-72 h",
-    "hr_max_pre72": "Maximum heart rate, pre-72 h",
-    "platelet_late_worst_48_72h": "Platelet count, worst 48-72 h",
-    "sofa_like_improved_pre72": "SOFA-like improvement, pre-72 h",
-    "lactate_last_pre72": "Last lactate, pre-72 h",
-    "bilirubin_rising_pre72": "Rising bilirubin, pre-72 h",
-    "wbc_late_last_48_72h": "Last WBC count, 48-72 h",
-    "sicu": "Surgical ICU",
-    "systemic_abx_agents_pre72": "Systemic antibiotic agents, pre-72 h",
-    "lactate_rising_pre72": "Rising lactate, pre-72 h",
-    "hours_admit_to_icu": "Admission-to-ICU interval, h",
-    "micu": "Medical ICU",
-    "white_blood_cells_last_pre72": "Last WBC count, pre-72 h",
-    "wbc_rising_pre72": "Rising WBC count, pre-72 h",
-    "severity_pre72": "Severity index, pre-72 h",
-    "bilirubin_late_worst_48_72h": "Bilirubin, worst 48-72 h",
-    "vasopressor_stopped_before_72h": "Vasopressor stopped before 72 h",
-}
-
-
-def pretty_label(name: str) -> str:
-    if name in PRETTY_LABELS:
-        return PRETTY_LABELS[name]
-    text = str(name).replace("_", " ")
-    replacements = {
-        "icu": "ICU",
-        "wbc": "WBC",
-        "sofa": "SOFA",
-        "iv": "IV",
-        "bmi": "BMI",
-        "spo2": "SpO2",
-        "map": "MAP",
-        "rr": "RR",
-        "hr": "HR",
-    }
-    words = [replacements.get(w.lower(), w) for w in text.split()]
-    text = " ".join(words)
-    return text[:1].upper() + text[1:]
-
-
 def build_esm1() -> None:
     bal = pd.read_csv(BALANCE)
     top = bal.sort_values("before", ascending=False).head(35).sort_values("before")
@@ -253,18 +174,23 @@ def build_esm1() -> None:
 def build_esm2() -> None:
     d = pd.read_csv(COHORT, low_memory=False)
     w, _, _ = fit_stabilized_iptw(d, CANDIDATE_PS_VARS)
+    ps_edges = np.linspace(0, 1, 31)
+    weight_edges = shared_histogram_edges(
+        [w.loc[w["A"] == 1, "SW_A"], w.loc[w["A"] == 0, "SW_A"]], bins=30
+    )
+
     fig, axes = plt.subplots(1, 2, figsize=(10.4, 4.3))
     for a, label in [(1, "De-escalated/stopped"), (0, "Continued broad-spectrum")]:
         axes[0].hist(
-            w.loc[w["A"] == a, "ps_den"],
-            bins=np.linspace(0, 1, 31),
+            w.loc[w["A"] == a, "ps_den"].to_numpy(float),
+            bins=ps_edges,
             histtype="step",
             linewidth=1.7,
             label=label,
         )
         axes[1].hist(
-            w.loc[w["A"] == a, "SW_A"],
-            bins=30,
+            w.loc[w["A"] == a, "SW_A"].to_numpy(float),
+            bins=weight_edges,
             histtype="step",
             linewidth=1.7,
             label=label,
