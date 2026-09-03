@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 
 import build_antibiotic_duration_descriptives as duration_descriptives
+from publication_figure_common import (
+    apply_publication_secondary_overrides,
+    prepare_progressive_mortality,
+)
 
 HARM = Path("outputs/publication_integration/harmonized")
 OUT = Path("outputs/publication_integration/reviewer_support")
@@ -72,11 +76,7 @@ def build_fig1() -> None:
 def build_fig2() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
     prog = pd.read_csv(HARM / "mimic_progressive_adjustment.csv")
-    primary = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
-    p = prog.copy()
-    last = p.index[-1]
-    p.loc[last, "rd_lower_95"] = primary["rd_ci95_low"]
-    p.loc[last, "rd_upper_95"] = primary["rd_ci95_high"]
+    p = prepare_progressive_mortality(mort, prog)
     labels = [
         "M1  Demographics/comorbidity",
         "M2  + baseline severity",
@@ -101,7 +101,9 @@ def build_fig2() -> None:
 
 def build_fig3() -> None:
     mort = pd.read_csv(HARM / "harmonized_mortality_results.csv")
-    sec = pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    sec = apply_publication_secondary_overrides(
+        pd.read_csv(HARM / "harmonized_secondary_outcomes.csv")
+    )
     mm = mort.loc[mort["dataset_analysis"].str.startswith("MIMIC-IV primary")].iloc[0]
     pm = mort.loc[mort["dataset_analysis"].str.startswith("PSU modified")].iloc[0]
 
@@ -132,9 +134,15 @@ def build_fig3() -> None:
         ax.set_title(title, fontsize=9.5)
         ax.set_xlabel(unit, fontsize=8.5)
         ax.tick_params(axis="x", labelsize=8)
+        span = max(abs(ax.get_xlim()[1] - ax.get_xlim()[0]), 1e-6)
         for x, y0 in zip(vals, yy):
-            span = max(abs(ax.get_xlim()[1] - ax.get_xlim()[0]), 1e-6)
-            ax.text(x + 0.025*span, y0, f"{x:+.2f}" if key in {"mortality", "Antibiotic-free days"} else f"{x:+.3f}", va="center", fontsize=7.8)
+            ax.text(
+                x + 0.025*span,
+                y0,
+                f"{x:+.2f}" if key in {"mortality", "Antibiotic-free days"} else f"{x:+.3f}",
+                va="center",
+                fontsize=7.8,
+            )
     fig.suptitle("Cross-dataset mortality and stewardship outcomes", fontsize=11, y=1.02)
     savefig(fig, "Fig3_cross_dataset_outcomes_final")
 
