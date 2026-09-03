@@ -263,3 +263,18 @@ tasks:
       - outputs/publication_integration/clinical_duration/antibiotic_duration_descriptives.csv
       - outputs/publication_integration/clinical_duration/antibiotic_duration_metadata.json
       - outputs/publication_integration/reviewer_support/reviewer_support_final_summary.md
+
+  psu_sepsis_cohort_nesting_audit:
+    description: Reconstruct the frozen strict PSU analytic cohort locally and confirm aggregate encounter-level nesting within the upstream sepsis_encounter source; no row-level artifacts and no validation of the upstream sepsis-definition implementation.
+    command:
+      - .venv/bin/python
+      - scripts/audit_psu_sepsis_cohort_nesting.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output
+      - outputs/publication_integration/psu_sepsis_cohort_audit/sepsis_cohort_nesting.json
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/psu_sepsis_cohort_audit/sepsis_cohort_nesting.json
