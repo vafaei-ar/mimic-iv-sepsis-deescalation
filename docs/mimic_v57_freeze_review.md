@@ -1,113 +1,130 @@
-# MIMIC-IV v5.7 freeze review
+# MIMIC-IV v5.7 publication freeze review
 
-This document records the review of the completed MIMIC-IV v5.7 package before manuscript lock and PSU external replication.
+This document records the accepted MIMIC-IV publication analysis after the final vital-sign audit and correction. Historical pre-correction values are not manuscript-facing results.
 
-## Reviewed run
+## Accepted publication source
 
-- Run directory: `mimic_iv_v5_7_final_20260820T003506Z`
-- MIMIC-IV version: 3.1
+Base source-dependent run:
+
+- `outputs/mimic/mimic_iv_v5_7_final_20260820T003506Z`
+
+Accepted corrected inference rerun:
+
+- `outputs/mimic/mimic_iv_v5_7_final_20260820T003506Z/inference_reruns/final_vital_corrected_final_20260825T010041Z`
+
+The corrected rerun is the source for manuscript primary/secondary outcomes, progressive adjustment, and final weighting diagnostics. Source-dependent microbiology and missing-stop-time sensitivities still originate from the complete base run.
+
+## Final cohort and estimand
+
 - Cohort: 9,589 admissions
-- De-escalated/stopped: 1,863
+- De-escalated or stopped: 1,863
 - Continued broad-spectrum: 7,726
-- Deaths by 30-day horizon: 1,657
-- Run manifest commit: `54dbf4a487f980c95666058d5cad986f79a26982`
+- Primary estimand: stabilized-IPTW ATE
+- Treatment decision: 72 h after first qualifying broad-spectrum exposure
+- Treatment classification: 72-96 h
+- Follow-up start: 96-h landmark
+- Primary culture-negative phenotype: qualifying microbiology sampled with no positive clinical culture result available by 72 h
 
-The run package is internally consistent across cohort flow, primary outcomes, progressive adjustment, mortality sensitivities, weight diagnostics, and final weighting sensitivities.
+The eventual culture-negative phenotype is retained only as a sensitivity analysis because using eventual results for day-3 eligibility would use future information.
 
-## Primary estimand and main result
+## Final corrected primary mortality result
 
-The primary estimand remains the ATE estimated with stabilized IPTW.
+The publication-facing corrected primary result is:
 
-- Weighted 30-day mortality, de-escalated/stopped: 0.176359
-- Weighted 30-day mortality, continued broad-spectrum: 0.175395
-- Risk difference: +0.000964 (+0.10 percentage points)
-- Risk ratio: 1.005499
-- Bootstrap 95% CI for RD: -0.042897 to +0.043607
+- Weighted mortality, de-escalated/stopped: 0.1829947002
+- Weighted mortality, continued broad-spectrum: 0.1746188734
+- Risk difference: +0.0083758268 (+0.84 percentage points)
+- Risk ratio: 1.0479663318
+- 95% bootstrap CI for RD: -0.0439033352 to +0.0567136492 (-4.39 to +5.67 percentage points)
 
-The mortality analysis therefore does not support a claim of mortality benefit or harm.
+Interpretation: the fully adjusted MIMIC analysis did not show clear evidence of increased 30-day mortality, but clinically meaningful harm could not be excluded. These data do not establish noninferiority or safety.
 
 ## Progressive adjustment
 
-The apparent mortality advantage attenuates as clinical status, trajectories, and treatment intensity are added:
+The M1-M4 sequence demonstrates attenuation as clinical improvement and treatment intensity are incorporated:
 
-| Model | RD | RR | max post-SMD |
+| Model | RD, percentage points | RR | max post-SMD |
 |---|---:|---:|---:|
-| M1 demographics/comorbidity | -0.041432 | 0.772489 | 0.013280 |
-| M2 + baseline severity/labs | -0.031895 | 0.823249 | 0.026551 |
-| M3 + near-decision clinical status | -0.024092 | 0.865404 | 0.027100 |
-| M4 + trajectories/intensity | +0.000964 | 1.005499 | 0.122087 |
+| M1 demographics/comorbidity | -4.14 | 0.7725 | 0.0133 |
+| M2 + baseline severity | -3.19 | 0.8232 | 0.0266 |
+| M3 + near-decision clinical status | -2.01 | 0.8872 | 0.0272 |
+| M4 + trajectories/intensity | +0.84 | 1.0480 | 0.1326 |
 
-This attenuation is an important substantive result and should be presented as evidence of strong confounding by clinical improvement and treatment intensity rather than as evidence that de-escalation reduces mortality.
+The progressive-model M4 point estimate matches the primary analysis exactly. Its separately generated bootstrap interval is not the manuscript primary interval.
 
-## Stewardship and recovery outcomes
+### Confidence-interval reporting rule
 
-The weighted analyses show lower antibiotic exposure and more hospital-/antibiotic-free days among de-escalated/stopped patients:
+For the manuscript primary mortality result, report the 1,000-replicate interval from `primary_secondary_outcomes.csv`: **-4.39 to +5.67 percentage points**. When presenting the M1-M4 sequence, the M4 point estimate may be shown with this designated primary interval only after asserting point-estimate equality.
 
-- Hospital-free days: +1.319 days, 95% CI 0.141 to 2.444
-- Antibiotic-free days: +1.955 days, 95% CI 0.469 to 3.145
-- Normalized systemic antibiotic exposure: -0.1183, 95% CI -0.1388 to -0.0899
-- Normalized broad-spectrum exposure: -0.1692, 95% CI -0.1863 to -0.1413
+A separately generated progressive-model M4 interval is a different saved bootstrap realization and should not replace the designated primary interval. Do not choose between those CIs based on favorability.
 
-These outcomes are downstream of the treatment strategy and should be interpreted as treatment-burden/recovery measures, not as independent evidence of causal clinical benefit.
+## Final corrected secondary outcomes
 
-The late recurrent/persistent antibiotic-course outcome remains exploratory because observation is affected by discharge timing.
+- Hospital-free days: +1.1018 days, 95% CI -0.3500 to +2.8677
+- Antibiotic-free days: +1.7549 days, 95% CI +0.3286 to +3.3447
+- Normalized systemic antibiotic exposure: -0.1170, 95% CI -0.13739 to -0.07059
+- Normalized broad-spectrum exposure: -0.16898, 95% CI -0.18452 to -0.12501
+- Late recurrent/persistent antibiotic-course RD: -0.07092, 95% CI -0.10374 to -0.01998
 
-## Positivity and weighting sensitivity
+The late-course outcome is exploratory because discharge changes observation opportunity. Antibiotic-burden outcomes are mechanically downstream of treatment classification and are treatment-separation/burden measures rather than independent proof of clinical benefit.
 
-Primary stabilized IPTW has residual positivity/balance limitations:
+## Final weighting diagnostics
 
-- max post-weighting SMD: 0.122087 (`temperature_48_72h`)
-- treated ESS: 672.3 / 1,863
-- continued ESS: 7,123.5 / 7,726
-- maximum weight: 25.38
+Primary stabilized IPTW:
 
-Sensitivity analyses:
+- maximum post-weighting absolute SMD: 0.13261
+- worst-balanced covariate: `temperature_48_72h`
+- de-escalated/stopped ESS: 613.96
+- continued ESS: 7,119.58
+- maximum stabilized weight: 30.864
 
-| Analysis | RD | RR | max post-SMD |
-|---|---:|---:|---:|
-| Overlap weighting | -0.013405 | 0.914626 | 0.053776 |
-| IPTW truncated 1/99 | -0.013174 | 0.924971 | 0.170405 |
-| IPTW truncated 2.5/97.5 | -0.016301 | 0.907428 | 0.250367 |
+Prespecified weighting sensitivities:
 
-Overlap weighting improves balance substantially but targets the overlap population rather than the ATE. Truncation worsens measured balance. Neither should replace the primary ATE post hoc.
+| Analysis | RD, percentage points | RR | 95% CI for RD, percentage points | max post-SMD |
+|---|---:|---:|---:|---:|
+| Overlap weighting | -0.93 | 0.939 | -4.36 to +2.25 | 0.0537 |
+| IPTW truncated 1/99 | -1.06 | 0.940 | -4.41 to +2.39 | 0.177 |
+| IPTW truncated 2.5/97.5 | -1.40 | 0.920 | -4.50 to +2.25 | 0.251 |
 
-## Mortality sensitivity analyses
+Overlap weighting targets the overlap population rather than the primary ATE and must not replace the primary estimand post hoc.
 
-- Narrowed/non-broad only vs continued: RD -0.025432, 95% CI -0.066774 to +0.018567
-- Stopped all observed systemic antibiotics vs continued: RD +0.019560, 95% CI -0.044193 to +0.092321
-- Excluding discharge within 24 h after landmark: RD -0.027874, 95% CI -0.127730 to +0.069928
-- Strict test-name culture-only: RD +0.000839, 95% CI -0.034769 to +0.043418
-- Eventual culture-negative: RD -0.021098, 95% CI -0.052926 to +0.013520
+## Vital-sign audit and final correction
 
-The eventual-culture-negative sensitivity reproduces the earlier approximately -2.1 percentage-point estimate, confirming that the old cohort definition was effectively an eventual-negativity phenotype.
+The final audit identified three measurement issues:
 
-## Freeze blocker found during final review
+- baseline temperature mixed Fahrenheit and Celsius values before aggregation;
+- the direct GCS-total feature was not a trustworthy routine measurement;
+- direct FiO2 mapping was unreliable/sparse for propensity-score inclusion.
 
-The package should **not yet be declared fully frozen** because the baseline temperature covariate `temp_max_pre72` mixes Fahrenheit and Celsius values before aggregation.
+The accepted correction:
 
-Evidence from the saved analytic cohort:
+1. converts temperature at the individual-reading level before aggregation;
+2. reconstructs GCS only from same-timestamp eye + verbal + motor component triplets;
+3. normalizes audited FiO2 readings to fractions;
+4. recomputes the SOFA-like trajectory after the GCS correction;
+5. excludes direct GCS and FiO2 terms from the primary propensity score while retaining corrected values for derived scores/descriptives;
+6. reruns inference from the corrected cohort.
 
-- `temp_max_pre72` range: 32.0 to 107.4
-- median: 99.6
-- 73 cohort rows have `temp_max_pre72 < 60`, indicating Celsius-scale maxima are present in a feature otherwise dominated by Fahrenheit-scale values
-- `temperature_48_72h` is already normalized to Celsius and has a clinically plausible range (approximately 35.1 to 41.1 C)
+The primary PS preparation retains the frozen historical MIMIC rules: binary missing values are filled with 0; continuous missing values use mean imputation in PS preparation; continuous variables are standardized and clipped to [-8, +8]; and estimated treatment probabilities are clipped to [0.001, 0.999].
 
-This is a covariate-measurement problem in the propensity model, not an outcome/exposure-definition problem. A quick diagnostic transformation of values <60 from C to F moved the full-model mortality RD only modestly (about +0.10 pp to +0.22 pp), but the correct fix must operate on individual temperature readings before patient-level maxima are calculated because some stays may contain both Fahrenheit and Celsius observations.
+These changes were audit-driven measurement repairs, not outcome-driven model tuning.
 
-Two additional vital features require verification before final lock:
+## Exploratory treatment subtypes
 
-- `gcs_total_48_72h` is constant at 0 in the saved cohort and is therefore dropped from the PS fit; this likely reflects extraction/mapping rather than true clinical measurement.
-- `fio2_48_72h` is almost constant (median 1.0; only two distinct values in the saved cohort), so its source-item and unit semantics need confirmation.
+Among 1,863 de-escalated/stopped admissions:
 
-A targeted audit script, `scripts/audit_mimic_vital_units.py`, was added to inspect the underlying MIMIC D_ITEMS/CHARTEVENTS labels and values without rerunning the full pipeline.
+- narrowed/non-broad only: 1,077 (57.8%)
+- stopped all observed systemic antibiotics: 786 (42.2%)
 
-## Freeze decision
+Exploratory adjusted mortality sensitivities:
 
-Current status: **provisionally locked for exposure, outcome, microbiology, landmark, and weighting definitions; not yet locked for the final covariate implementation.**
+- narrowing vs continued: RD -1.97 percentage points, 95% CI -6.86 to +3.33
+- stopping vs continued: RD +2.55 percentage points, 95% CI -5.14 to +9.97
 
-Before manuscript lock and PSU harmonization, complete the targeted vital-unit audit and either:
+The complete-stopping contrast has poor overlap (treated ESS about 106, max post-SMD about 0.303, maximum weight about 47.9) and remains supplementary only. Neither subtype analysis replaces the frozen binary primary estimand.
 
-1. correct temperature/GCS/FiO2 extraction and rerun only the affected feature/inference stages; or
-2. remove a demonstrably invalid/non-informative feature from the harmonized PS specification with a documented rationale, then rerun inference.
+## Publication lock
 
-Do not tune any correction based on whether it makes the mortality estimate more favorable.
+Status: **frozen for manuscript use**.
+
+Do not alter the cohort definition, treatment window, microbiology rule, propensity-score specification, weighting estimand, trimming thresholds, outcome definitions, or bootstrap strategy in response to treatment-effect results. Any new scientific specification should be explicitly labeled as a new post hoc analysis rather than folded into the publication freeze.
