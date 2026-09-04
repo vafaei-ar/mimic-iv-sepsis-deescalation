@@ -1,1 +1,0 @@
-Temporary execution note: the point-estimate workflow reuses the frozen PSU PS source and frozen outcome definitions, estimates aggregate point effects only, and does not run bootstrap inference. The RunRelay execution branch may use a minimal task manifest solely to bind this immutable point-estimate job.
