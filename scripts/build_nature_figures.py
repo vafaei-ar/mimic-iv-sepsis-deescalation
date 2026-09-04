@@ -69,10 +69,10 @@ def _draw_timeline(ax) -> None:
     ax.text(36, -0.72, "Pre-decision covariates", ha="center", fontsize=7.0)
     ax.plot([72, 96], [-0.43, -0.43], linewidth=5.0, alpha=0.68,
             color="#A66C5B", solid_capstyle="butt")
-    ax.text(84, -0.72, "Treatment classification", ha="center", fontsize=7.0)
+    ax.text(82, -0.72, "Treatment classification", ha="center", fontsize=7.0)
     ax.plot([96, 121], [-0.43, -0.43], linewidth=5.0, alpha=0.68,
             color="#D454B6", solid_capstyle="butt")
-    ax.text(108.5, -0.72, "Outcome follow-up", ha="center", fontsize=7.0)
+    ax.text(110, -0.72, "Outcome follow-up", ha="center", fontsize=7.0)
     fs.panel_label(ax, "a", dx=-0.03, dy=0.98)
 
 
