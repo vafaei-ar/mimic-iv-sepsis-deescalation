@@ -315,6 +315,28 @@ tasks:
       - outputs/publication_integration/nature_figures/ESM_Fig2_propensity_overlap.png
       - outputs/publication_integration/nature_figures/ESM_Fig2_propensity_overlap.pdf
 
+  publication_baseline_characteristics:
+    description: Build aggregate baseline-characteristics tables for the frozen MIMIC-IV primary cohort and Penn State modified external replication, including before/after weighting SMDs; no outcomes or treatment effects and no row-level artifacts.
+    command:
+      - .venv/bin/python
+      - scripts/build_publication_baseline_characteristics.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+    approval: manual
+    timeout_minutes: 20
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/baseline_characteristics/mimic_baseline_characteristics_formatted.csv
+      - outputs/publication_integration/baseline_characteristics/mimic_baseline_characteristics_detailed.csv
+      - outputs/publication_integration/baseline_characteristics/mimic_baseline_characteristics.md
+      - outputs/publication_integration/baseline_characteristics/mimic_baseline_characteristics_metadata.json
+      - outputs/publication_integration/baseline_characteristics/psu_baseline_characteristics_formatted.csv
+      - outputs/publication_integration/baseline_characteristics/psu_baseline_characteristics_detailed.csv
+      - outputs/publication_integration/baseline_characteristics/psu_baseline_characteristics.md
+      - outputs/publication_integration/baseline_characteristics/psu_baseline_characteristics_metadata.json
+      - outputs/publication_integration/baseline_characteristics/baseline_characteristics_combined.md
+      - outputs/publication_integration/baseline_characteristics/baseline_characteristics_summary.json
+
   repository_validation:
     description: Run public-data-free repository tests and lint checks after branch consolidation; does not access restricted MIMIC-IV or PSU data and emits no artifacts.
     command:
