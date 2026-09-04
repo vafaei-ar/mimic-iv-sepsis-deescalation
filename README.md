@@ -7,9 +7,10 @@ Reproducible analysis code for the MIMIC-IV day-3 broad-spectrum antibiotic de-e
 For a scientific/code review, read these files in order:
 
 1. `docs/target_trial_spec.md` — frozen target-trial contract.
-2. `docs/mimic_v57_freeze_review.md` — MIMIC publication-freeze review and known implementation decisions.
+2. `docs/mimic_analysis_walkthrough.md` — reviewer-oriented MIMIC workflow, rationale, corrected-vital publication path, and parity targets.
 3. `docs/psu_crosswalk.md` — MIMIC-to-PSU data-source crosswalk.
 4. `docs/psu_analysis_walkthrough.md` — reviewer-oriented PSU pipeline, rationale, parity targets, and exact reproduction commands.
+5. `docs/mimic_v57_freeze_review.md` — historical MIMIC publication-freeze audit and implementation notes.
 
 The comments in the final PSU entry-point scripts intentionally explain non-obvious scientific decisions next to the code that implements them. Historical audit scripts are retained because they document how source semantics were validated before the final definitions were frozen.
 
@@ -23,9 +24,11 @@ The primary estimand is the ATE estimated using stabilized inverse probability t
 
 ### PSU modified external replication
 
-PSU preserves the conceptual 72-h decision, 72-96-h classification window, and 96-h landmark, but it is **not an exact MIMIC replication**. The available PSU extract does not provide a validated day-3 culture-result-availability phenotype or an exact ICU clock, medication route is incomplete, and several timestamps are date-level.
+PSU preserves the conceptual first-broad-spectrum anchor, 72-h decision, 72-96-h classification window, and 96-h landmark, but it is **not an exact MIMIC replication**. The available PSU data use different source semantics and granularity for several constructs, including hospital/ICU representation, medication exposure, microbiology, and date-level event timing.
 
 The primary PSU exposure therefore uses the closest defensible structured source: `PRESCRIBING`, interpreted as an **ordered systemic broad-spectrum antibiotic proxy**, not verified IV administration. `MED_ADMIN` is retained as a prespecified measurement sensitivity. These differences are documented explicitly in `docs/psu_analysis_walkthrough.md` and `docs/psu_crosswalk.md`.
+
+The frozen PSU analytic cohort is drawn from the upstream `sepsis_encounter` source. The manuscript describes that source cohort as meeting an adapted sepsis definition supplied by the Penn State team: suspected or confirmed infection plus an absolute modified SOFA score >=2, with the neurologic/GCS component omitted because GCS could not be reliably mapped in PCORI. This is not identical to the full Sepsis-3 >=2-point change definition.
 
 ## Repository layout
 
@@ -33,8 +36,8 @@ The primary PSU exposure therefore uses the closest defensible structured source
 config/                 analysis configuration and site mapping templates
 src/sepsis_deescalation reusable MIMIC analysis package
 scripts/                audit and final command-line entry points
-tests/                  unit/smoke tests
-docs/                   scientific contracts, freeze reviews, and PSU reviewer guide
+tests/                  unit/smoke and publication-contract tests
+docs/                   scientific contracts, freeze reviews, and reviewer guides
 outputs/                 generated local results/caches; ignored by git
 .runrelay/               approved-machine execution manifest
 ```
@@ -85,12 +88,28 @@ python scripts/run_mimic.py \
 
 ### Final publication mode
 
+The final manuscript source is the corrected-vital inference rerun, not the pre-repair point estimates from the source-dependent base run.
+
 ```bash
 python scripts/run_mimic.py \
   --config config/mimic.yaml \
   --mode final \
   --jobs auto
+
+export RUN_DIR=outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ
+
+python scripts/repair_v57_vital_covariates.py "$RUN_DIR" \
+  --config config/mimic.yaml
+
+python scripts/rerun_inference.py "$RUN_DIR" \
+  --config config/mimic.yaml \
+  --mode final \
+  --jobs auto \
+  --cohort-path "$RUN_DIR/audits/vital_repair/analysis_cohort_vital_corrected.csv" \
+  --label vital_corrected_final
 ```
+
+The manuscript primary/secondary outcomes, progressive-adjustment sequence, and final weighting diagnostics come from the corrected `final_vital_corrected_final_*` inference rerun. Source-dependent microbiology and missing-stop-time sensitivities still require the complete base run.
 
 `--jobs auto` uses up to eight worker processes. BLAS/OpenMP libraries are restricted to one thread inside each bootstrap worker to avoid CPU oversubscription. This affects runtime, not the estimand.
 
@@ -99,14 +118,6 @@ The optimized bootstrap engine uses a numeric design matrix rather than rebuildi
 ### Inference-only resume mode
 
 A complete run can write a local patient-level checkpoint under `outputs/cache/mimic/<analysis_version>/`. This checkpoint never belongs in git and remains subject to MIMIC data-use restrictions.
-
-```bash
-python scripts/rerun_inference.py \
-  outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ \
-  --config config/mimic.yaml \
-  --mode fast \
-  --jobs auto
-```
 
 Inference-only mode does not replace a complete source-dependent final run for microbiology and other source-level sensitivities.
 
@@ -146,6 +157,16 @@ python scripts/run_psu_prespecified_robustness_bootstrap.py "$PSU_DATA_ROOT" \
 ```
 
 Expected frozen parity targets and the rationale for each stage are listed in `docs/psu_analysis_walkthrough.md`.
+
+## Publication figures
+
+The preferred manuscript-facing figure set is generated by:
+
+```bash
+python scripts/build_nature_figures.py
+```
+
+This writes the combined Figure 1, progressive-adjustment Figure 2, cross-dataset Figure 3, and ESM diagnostic figures under `outputs/publication_integration/nature_figures/`. The figure code reads frozen manuscript-facing aggregate values where available; raw/row-level data remain local and are never committed.
 
 ## Reproducibility rules
 
