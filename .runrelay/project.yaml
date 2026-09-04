@@ -278,3 +278,24 @@ tasks:
     working_directory: .
     artifacts:
       - outputs/publication_integration/psu_sepsis_cohort_audit/sepsis_cohort_nesting.json
+
+  publication_nature_figures:
+    description: Rebuild the preferred publication figures using the Nature-style visual system, including the combined target-trial/cohort Figure 1 and revised ESM diagnostics; no primary inference is rerun.
+    command:
+      - .venv/bin/python
+      - scripts/build_nature_figures.py
+    approval: manual
+    timeout_minutes: 15
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/nature_figures/Fig1_target_trial_and_cohort.png
+      - outputs/publication_integration/nature_figures/Fig1_target_trial_and_cohort.pdf
+      - outputs/publication_integration/nature_figures/Fig2_progressive_adjustment.png
+      - outputs/publication_integration/nature_figures/Fig2_progressive_adjustment.pdf
+      - outputs/publication_integration/nature_figures/Fig3_cross_dataset_outcomes.png
+      - outputs/publication_integration/nature_figures/Fig3_cross_dataset_outcomes.pdf
+      - outputs/publication_integration/nature_figures/ESM_Fig1_covariate_balance.png
+      - outputs/publication_integration/nature_figures/ESM_Fig1_covariate_balance.pdf
+      - outputs/publication_integration/nature_figures/ESM_Fig2_propensity_overlap.png
+      - outputs/publication_integration/nature_figures/ESM_Fig2_propensity_overlap.pdf
