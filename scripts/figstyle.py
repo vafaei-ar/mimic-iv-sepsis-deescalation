@@ -24,16 +24,12 @@ ONE_HALF = 120 * MM
 DOUBLE = 183 * MM
 MAX_DEPTH = 247 * MM
 
-# Categorical pair, validated for colour-vision deficiency: worst adjacent
-# separation dE 21.9 (protan), 31.2 (normal vision), both well above the
-# dE >= 8 target. Derived from the Okabe-Ito safe qualitative set.
-BLUE = "#0072B2"      # MIMIC-IV
-VERMILLION = "#D55E00"  # Penn State
-GREEN = "#009E73"     # third slot, only if a third series is unavoidable
+# Accessible categorical palette with stable manuscript semantics.
+BLUE = "#0072B2"        # MIMIC-IV / primary MIMIC emphasis
+VERMILLION = "#D55E00"  # Penn State modified external replication
+GREEN = "#009E73"       # de-escalated/stopped within MIMIC treatment diagnostics
 
-# Non-data ink. Reference lines and context series must never wear a data hue -
-# the current figures draw the null line in the same blue as the estimates,
-# which reads as a fifth data series.
+# Non-data ink. Reference lines and context series must never wear a data hue.
 INK = "#1A1A1A"
 MUTED = "#6E6E6E"
 FAINT = "#B8B8B8"
