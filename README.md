@@ -1,105 +1,55 @@
 # MIMIC-IV Sepsis Day-3 De-escalation
 
-Reproducible analysis code for the MIMIC-IV day-3 broad-spectrum antibiotic de-escalation target-trial emulation and the Penn State (PSU) **modified external replication**.
+Reproducible analysis code for the MIMIC-IV day-3 broad-spectrum antibiotic de-escalation target-trial emulation and the Penn State modified external replication.
+
+## Publication status
+
+The scientific definitions and publication analyses are frozen. `main` is the canonical branch for manuscript-facing code and documentation. New scientific specifications should be treated as post hoc analyses rather than folded into the frozen primary analysis.
 
 ## Start here
 
-For a scientific/code review, read these files in order:
+For scientific or code review, read:
 
-1. `docs/target_trial_spec.md` — frozen target-trial contract.
-2. `docs/mimic_analysis_walkthrough.md` — reviewer-oriented MIMIC workflow, rationale, corrected-vital publication path, and parity targets.
-3. `docs/psu_crosswalk.md` — MIMIC-to-PSU data-source crosswalk.
-4. `docs/psu_analysis_walkthrough.md` — reviewer-oriented PSU pipeline, rationale, parity targets, and exact reproduction commands.
-5. `docs/mimic_v57_freeze_review.md` — historical MIMIC publication-freeze audit and implementation notes.
-
-The comments in the final PSU entry-point scripts intentionally explain non-obvious scientific decisions next to the code that implements them. Historical audit scripts are retained because they document how source semantics were validated before the final definitions were frozen.
+1. `docs/target_trial_spec.md` - frozen target-trial contract.
+2. `docs/mimic_analysis_walkthrough.md` - final MIMIC workflow, corrected-vital publication path, and parity targets.
+3. `docs/psu_crosswalk.md` - MIMIC-to-Penn-State data-source crosswalk.
+4. `docs/psu_analysis_walkthrough.md` - final Penn State modified-replication workflow and parity targets.
+5. `docs/mimic_v57_freeze_review.md` - final MIMIC publication-freeze record.
 
 ## Scientific design
 
 ### MIMIC-IV primary analysis
 
-The primary MIMIC analysis is anchored at the first qualifying systemic IV broad-spectrum antibiotic exposure. The treatment decision time is 72 h later, treatment is classified over 72-96 h, and follow-up starts at the 96-h landmark. The primary culture-negative definition requires qualifying microbiology sampling and no positive clinical culture result available by the 72-h decision time.
+The primary MIMIC-IV analysis is anchored at the first qualifying systemic intravenous broad-spectrum antibiotic exposure. The treatment decision occurs 72 hours later, treatment is classified during hours 72-96, and follow-up begins at the 96-hour landmark. The primary culture-negative definition requires qualifying microbiology sampling and no positive clinical culture result available by the 72-hour decision.
 
-The primary estimand is the ATE estimated using stabilized inverse probability treatment weighting. Covariates are measured before the 72-h treatment decision. The final model includes clinical status and treatment/intensity trajectories because confounding by clinical improvement is central to the scientific question.
+The primary estimand is the average treatment effect estimated with stabilized inverse probability treatment weighting. Covariates are restricted to information available before the 72-hour decision. The final model includes near-decision clinical status, recovery trajectories, diagnostic intensity, and treatment intensity.
 
-### PSU modified external replication
+### Penn State modified external replication
 
-PSU preserves the conceptual first-broad-spectrum anchor, 72-h decision, 72-96-h classification window, and 96-h landmark, but it is **not an exact MIMIC replication**. The available PSU data use different source semantics and granularity for several constructs, including hospital/ICU representation, medication exposure, microbiology, and date-level event timing.
+Penn State preserves the conceptual first-broad-spectrum anchor, 72-hour decision, 72-96-hour classification window, and 96-hour landmark, but it is not an exact MIMIC replication. Source semantics differ for hospital/ICU representation, medication exposure, microbiology, route information, and event-time resolution.
 
-The primary PSU exposure therefore uses the closest defensible structured source: `PRESCRIBING`, interpreted as an **ordered systemic broad-spectrum antibiotic proxy**, not verified IV administration. `MED_ADMIN` is retained as a prespecified measurement sensitivity. These differences are documented explicitly in `docs/psu_analysis_walkthrough.md` and `docs/psu_crosswalk.md`.
-
-The frozen PSU analytic cohort is drawn from the upstream `sepsis_encounter` source. The manuscript describes that source cohort as meeting an adapted sepsis definition supplied by the Penn State team: suspected or confirmed infection plus an absolute modified SOFA score >=2, with the neurologic/GCS component omitted because GCS could not be reliably mapped in PCORI. This is not identical to the full Sepsis-3 >=2-point change definition.
+The primary Penn State medication phenotype uses order-based prescribing records as the closest defensible analogue to the MIMIC prescription/order construct. Medication-administration records are used as a prespecified sensitivity analysis. The frozen Penn State analytic cohort is drawn from the upstream sepsis encounter source and uses the adapted local sepsis definition documented in the Penn State walkthrough.
 
 ## Repository layout
 
 ```text
-config/                 analysis configuration and site mapping templates
-src/sepsis_deescalation reusable MIMIC analysis package
-scripts/                audit and final command-line entry points
-tests/                  unit/smoke and publication-contract tests
-docs/                   scientific contracts, freeze reviews, and reviewer guides
-outputs/                 generated local results/caches; ignored by git
-.runrelay/               approved-machine execution manifest
+config/                  analysis configuration and site-mapping templates
+src/sepsis_deescalation/ reusable MIMIC analysis package
+scripts/                 final entry points plus retained audit/provenance scripts
+tests/                   unit, smoke, and publication-contract tests
+docs/                    scientific contracts, freeze records, and reviewer guides
+outputs/                 generated local results and caches; ignored by git
+.runrelay/                approved-machine execution manifest
 ```
 
-## Data policy
+## Final analysis entry points
 
-**Never commit patient-level MIMIC-IV, PSU, PCORnet, or derived analytic data.** Patient-level CSV/Parquet files and `outputs/` are ignored by git. The repository should contain code, configuration templates, tests, documentation, and non-sensitive aggregate outputs only.
-
-The public repository does not contain credentialed MIMIC-IV data or restricted PSU data. Reviewers who do not have data access can still inspect all phenotype, statistical, and documentation logic.
-
-## Installation
-
-Use a repository-local virtual environment:
+### MIMIC-IV
 
 ```bash
-/usr/bin/python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e '.[dev]'
-pytest -q
-ruff check .
-```
+python scripts/run_mimic.py --config config/mimic.yaml --mode final --jobs auto
 
-Python dependencies are constrained by major version in `pyproject.toml`. Publication runs also record the exact git commit and execution metadata through RunRelay.
-
-## MIMIC-IV reproduction
-
-Set the local MIMIC-IV 3.1 root without committing it:
-
-```bash
-export MIMIC_SOURCE=/path/to/mimiciv/3.1
-```
-
-Validate first:
-
-```bash
-python scripts/validate_mimic.py --config config/mimic.yaml
-```
-
-### Fast development mode
-
-```bash
-python scripts/run_mimic.py \
-  --config config/mimic.yaml \
-  --mode fast \
-  --jobs auto
-```
-
-### Final publication mode
-
-The final manuscript source is the corrected-vital inference rerun, not the pre-repair point estimates from the source-dependent base run.
-
-```bash
-python scripts/run_mimic.py \
-  --config config/mimic.yaml \
-  --mode final \
-  --jobs auto
-
-export RUN_DIR=outputs/mimic/mimic_iv_v5_7_final_YYYYMMDDTHHMMSSZ
-
-python scripts/repair_v57_vital_covariates.py "$RUN_DIR" \
-  --config config/mimic.yaml
+python scripts/repair_v57_vital_covariates.py "$RUN_DIR" --config config/mimic.yaml
 
 python scripts/rerun_inference.py "$RUN_DIR" \
   --config config/mimic.yaml \
@@ -109,29 +59,11 @@ python scripts/rerun_inference.py "$RUN_DIR" \
   --label vital_corrected_final
 ```
 
-The manuscript primary/secondary outcomes, progressive-adjustment sequence, and final weighting diagnostics come from the corrected `final_vital_corrected_final_*` inference rerun. Source-dependent microbiology and missing-stop-time sensitivities still require the complete base run.
+The manuscript primary and secondary outcomes, progressive-adjustment sequence, and final weighting diagnostics come from the corrected vital-sign inference rerun. Source-dependent microbiology and missing-stop-time sensitivities remain tied to the complete base run.
 
-`--jobs auto` uses up to eight worker processes. BLAS/OpenMP libraries are restricted to one thread inside each bootstrap worker to avoid CPU oversubscription. This affects runtime, not the estimand.
+### Penn State
 
-The optimized bootstrap engine uses a numeric design matrix rather than rebuilding formulas for every replicate. The primary/secondary outcomes share one propensity-score fit per bootstrap replicate. Point-estimate definitions and target estimands are unchanged.
-
-### Inference-only resume mode
-
-A complete run can write a local patient-level checkpoint under `outputs/cache/mimic/<analysis_version>/`. This checkpoint never belongs in git and remains subject to MIMIC data-use restrictions.
-
-Inference-only mode does not replace a complete source-dependent final run for microbiology and other source-level sensitivities.
-
-## PSU reproduction
-
-The final PSU publication analysis is not produced by the generic `run_pcornet.py` template. It is produced by the frozen PSU audit/inference sequence below. This distinction matters because the PSU extract required several source-semantic audits before a defensible modified replication could be frozen.
-
-Set the approved local data root:
-
-```bash
-export PSU_DATA_ROOT=/path/to/approved/psu/data/root
-```
-
-Run the stages in order:
+The frozen Penn State publication sequence is:
 
 ```bash
 python scripts/audit_psu_final_covariate_freeze.py "$PSU_DATA_ROOT" \
@@ -156,33 +88,50 @@ python scripts/run_psu_prespecified_robustness_bootstrap.py "$PSU_DATA_ROOT" \
   --output-dir outputs/psu_prespecified_robustness_bootstrap/latest
 ```
 
-Expected frozen parity targets and the rationale for each stage are listed in `docs/psu_analysis_walkthrough.md`.
+Expected parity targets and the rationale for each stage are documented in `docs/psu_analysis_walkthrough.md`.
 
-## Publication figures
+## Publication-support builders
 
-The preferred manuscript-facing figure set is generated by:
+Manuscript-facing aggregate outputs are built from frozen analyses. Important entry points include:
+
+- `scripts/build_nature_figures.py` - final manuscript and ESM figures.
+- `scripts/build_publication_baseline_characteristics.py` - combined MIMIC-IV and Penn State baseline-characteristics aggregates.
+- `scripts/build_publication_integration.py` - harmonized manuscript-facing aggregate tables.
+- `scripts/build_manuscript_package.py` - publication-support text and figure/table data.
+
+These builders export aggregate or sanitized publication outputs only.
+
+## Historical audit scripts
+
+The `audit_psu_*` scripts are retained intentionally as provenance. They document source-semantic checks performed before the Penn State phenotype, covariates, and outcomes were frozen. They are not all required for routine reproduction, but deleting them would remove the audit trail for non-obvious design decisions. The reviewer walkthrough distinguishes final entry points from historical audits.
+
+## Data and privacy policy
+
+Never commit patient-level MIMIC-IV, Penn State, PCORnet, or derived analytic data. Raw and patient-level data remain local. `outputs/` is ignored except for its placeholder file. RunRelay artifacts are limited to explicitly declared safe aggregate outputs.
+
+The public repository contains code, configuration templates, tests, documentation, and non-sensitive aggregate publication support only.
+
+## Installation and validation
+
+Use a repository-local environment:
 
 ```bash
-python scripts/build_nature_figures.py
+/usr/bin/python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+pytest -q
+ruff check .
 ```
-
-This writes the combined Figure 1, progressive-adjustment Figure 2, cross-dataset Figure 3, and ESM diagnostic figures under `outputs/publication_integration/nature_figures/`. The figure code reads frozen manuscript-facing aggregate values where available; raw/row-level data remain local and are never committed.
 
 ## Reproducibility rules
 
 1. Work from a named git commit and a clean repository state.
-2. Use a repository-local environment and do not rely on ad hoc global packages.
-3. Do not edit generated effect tables by hand.
-4. Keep bootstrap seeds and publication replicate counts fixed in code/configuration.
-5. Freeze scientific definitions before looking at treatment-effect changes.
-6. Site-specific differences must be documented rather than silently forced into MIMIC semantics.
-7. Patient-level checkpoints and source data stay local and out of git/artifact transport.
-8. A software refactor of frozen PSU code must demonstrate parity on cohort counts, PS balance, ESS/weights, outcomes, point estimates, and bootstrap intervals before replacing the publication implementation.
-9. Overlap weighting is a different estimand (ATO) and must not silently replace the primary ATE.
-10. PSU should be described as a **modified external replication**, and its primary medication exposure as an ordered/systemic proxy rather than verified IV administration.
-
-## Why historical audit scripts remain in the repository
-
-The many `audit_psu_*` scripts are intentional provenance. They record how ICU timing, microbiology, antibiotic mapping, route coding, laboratory clocks, MED_ADMIN timing, covariate availability, missingness, and outcome observability were evaluated before the final definitions were selected.
-
-They are not all required for every reproduction run, but removing them would erase the evidence for several non-obvious data decisions. The reviewer walkthrough identifies which scripts are historical audits and which are final analysis entry points.
+2. Do not edit generated effect tables by hand.
+3. Keep bootstrap seeds and publication replicate counts fixed.
+4. Freeze scientific definitions before examining treatment-effect changes.
+5. Document site-specific differences rather than silently forcing Penn State into MIMIC semantics.
+6. Keep patient-level checkpoints and source data local and outside git or artifact transport.
+7. Require parity on cohort counts, balance, weights, outcomes, point estimates, and bootstrap intervals before replacing frozen publication code.
+8. Treat overlap weighting as a different estimand rather than a replacement for the primary ATE.
+9. Describe Penn State as a modified external replication rather than an exact validation cohort.
