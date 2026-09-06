@@ -28,7 +28,7 @@ The primary estimand is the average treatment effect estimated with stabilized i
 
 Penn State preserves the conceptual first-broad-spectrum anchor, 72-hour decision, 72-96-hour classification window, and 96-hour landmark, but it is not an exact MIMIC replication. Source semantics differ for hospital/ICU representation, medication exposure, microbiology, route information, and event-time resolution.
 
-The primary Penn State medication phenotype uses order-based prescribing records as the closest defensible analogue to the MIMIC prescription/order construct. Medication-administration records are used as a prespecified sensitivity analysis. The frozen Penn State analytic cohort is drawn from the upstream sepsis encounter source and uses the adapted local sepsis definition documented in the Penn State walkthrough.
+The primary Penn State medication phenotype uses order-based prescribing records as an ordered systemic broad-spectrum antibiotic proxy and the closest defensible analogue to the MIMIC prescription/order construct. Medication-administration records are used as a prespecified sensitivity analysis. The frozen Penn State analytic cohort is drawn from the upstream sepsis encounter source and uses the adapted local sepsis definition documented in the Penn State walkthrough.
 
 ## Repository layout
 
@@ -59,7 +59,7 @@ python scripts/rerun_inference.py "$RUN_DIR" \
   --label vital_corrected_final
 ```
 
-The manuscript primary and secondary outcomes, progressive-adjustment sequence, and final weighting diagnostics come from the corrected vital-sign inference rerun. Source-dependent microbiology and missing-stop-time sensitivities remain tied to the complete base run.
+The manuscript primary/secondary outcomes, progressive-adjustment sequence, and final weighting diagnostics come from the corrected vital-sign inference rerun. Source-dependent microbiology and missing-stop-time sensitivities remain tied to the complete base run.
 
 ### Penn State
 
