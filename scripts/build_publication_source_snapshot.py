@@ -20,6 +20,7 @@ PSU_BASE = ROOT / "outputs" / "psu_publication_parity" / "latest"
 
 SOURCES = {
     "mimic_primary_secondary": MIMIC_BASE / "tables" / "primary_secondary_outcomes.csv",
+    "mimic_primary_mortality_ci": MIMIC_BASE / "tables" / "ci_death_by_horizon.csv",
     "mimic_progressive_adjustment": MIMIC_BASE / "tables" / "progressive_adjustment.csv",
     "mimic_final_weighting_point_estimates": MIMIC_BASE / "final_weighting" / "final_weighting_point_estimates.csv",
     "mimic_final_weighting_bootstrap_ci": MIMIC_BASE / "final_weighting" / "final_weighting_bootstrap_ci.csv",
