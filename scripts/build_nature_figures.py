@@ -605,7 +605,7 @@ def build_esm1() -> None:
     left = -max_x * 0.025
 
     fig, ax = plt.subplots(figsize=(fs.ONE_HALF, 6.15))
-    fig.subplots_adjust(left=0.46, right=0.96, top=0.955, bottom=0.08)
+    fig.subplots_adjust(left=0.46, right=0.96, top=0.94, bottom=0.08)
     ax.axvline(0.1, color=RULE, linestyle=(0, (3, 2)), linewidth=0.6, zorder=0)
 
     for b, a, yi in zip(before, after, y):
@@ -633,13 +633,14 @@ def build_esm1() -> None:
             color=MUTED, va="bottom", ha="left")
     ax.text(
         0.02,
-        0.975,
-        f"max post-weight |SMD| = {float(np.nanmax(after)):.3f}",
+        1.045,
+        f"Maximum post-weight |SMD| = {float(np.nanmax(after)):.3f}",
         transform=ax.transAxes,
         fontsize=6.1,
         color=MUTED,
         ha="left",
-        va="top",
+        va="bottom",
+        clip_on=False,
     )
     fs.savefig(fig, OUT, "ESM_Fig1_covariate_balance")
 
