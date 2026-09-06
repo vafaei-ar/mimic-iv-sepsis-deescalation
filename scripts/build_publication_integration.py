@@ -28,6 +28,13 @@ def parity_expected(snapshot: dict) -> dict[str, float | int]:
     return {c["check"]: c["expected"] for c in checks}
 
 
+def mimic_primary_ci(snapshot: dict, estimand: str) -> dict:
+    for row in records(snapshot, "mimic_primary_mortality_ci"):
+        if row["estimand"] == estimand:
+            return row
+    raise KeyError(("MIMIC-IV primary mortality", estimand))
+
+
 def psu_point(snapshot: dict, outcome: str) -> dict:
     for row in records(snapshot, "psu_point_estimates"):
         if row["method"] == "stabilized_ate_iptw" and row["outcome"] == outcome:
@@ -49,6 +56,11 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
     mimic_primary = next(r for r in records(snapshot, "mimic_primary_secondary") if r["analysis"] == "30-day mortality")
+    mimic_rd_ci = mimic_primary_ci(snapshot, "risk_difference")
+    mimic_rr_ci = mimic_primary_ci(snapshot, "risk_ratio")
+    if abs(float(mimic_primary["lower_95"]) - float(mimic_rd_ci["lower_95"])) > 1e-12 or abs(float(mimic_primary["upper_95"]) - float(mimic_rd_ci["upper_95"])) > 1e-12:
+        raise RuntimeError("Designated primary mortality RD interval disagrees across frozen source tables")
+
     expected = parity_expected(snapshot)
     psu_balance = snapshot["sources"]["psu_ps_balance_summary"]["content"]
 
@@ -64,10 +76,10 @@ def main() -> None:
             "rd_ci95_low": mimic_primary["lower_95"],
             "rd_ci95_high": mimic_primary["upper_95"],
             "mortality_rr": mimic_primary["risk_ratio"],
-            "rr_ci95_low": None,
-            "rr_ci95_high": None,
+            "rr_ci95_low": mimic_rr_ci["lower_95"],
+            "rr_ci95_high": mimic_rr_ci["upper_95"],
             "estimand": "ATE",
-            "note": "Corrected final MIMIC-IV analysis; primary 1000-replicate mortality CI.",
+            "note": "Corrected final MIMIC-IV analysis; designated primary 1000-replicate mortality bootstrap intervals.",
         },
         {
             "dataset_analysis": "PSU modified external replication, primary PRESCRIBING exposure",
@@ -182,7 +194,7 @@ def main() -> None:
     p_rd = 100 * expected["primary mortality RD"]
     p_lo = 100 * expected["primary mortality RD CI low"]
     p_hi = 100 * expected["primary mortality RD CI high"]
-    md = f"""# Frozen MIMIC-IV and PSU publication integration\n\nThis package is generated only from the frozen aggregate source snapshot. No patient-level data are read and no models are refit.\n\n## Primary interpretation\n\n- MIMIC-IV corrected primary stabilized IPTW: 30-day mortality RD {m_rd:+.2f} percentage points (95% CI {m_lo:+.2f} to {m_hi:+.2f}), RR {mimic_primary['risk_ratio']:.3f}.\n- PSU modified external replication: publication-locked 30-day mortality RD {p_rd:+.2f} percentage points (95% CI {p_lo:+.2f} to {p_hi:+.2f}), RR {expected['primary mortality RR']:.3f}.\n- These estimates should not be forced into agreement. The PSU analysis is a modified external replication with materially different culture-result, timing, route, and data-model semantics.\n- The cross-dataset result that is most consistent is reduced antibiotic burden after de-escalation.\n\n## MIMIC progressive adjustment\n\nThe mortality association moves from approximately -4.14 percentage points in M1 to +0.84 percentage points in fully adjusted M4, supporting strong confounding by clinical improvement and treatment intensity. The final MIMIC ATE retains residual balance/positivity limitations (maximum post-weighting absolute SMD {mimic_weight['max_post_smd']:.3f}; treated ESS {mimic_weight['ess_deescalated_stopped']:.0f}).\n\n## PSU reproducibility status\n\nThe PSU publication parity check passed all 29 checks. Mortality quantities in the harmonized table use the accepted publication values embedded in that checker; current rerun values can vary slightly within the validated numerical tolerances.\n\n## Files\n\n- `harmonized_mortality_results.csv`\n- `harmonized_secondary_outcomes.csv`\n- `mimic_progressive_adjustment.csv`\n- `weighting_diagnostics.csv`\n\nThe late recurrent/persistent antibiotic-course outcome remains exploratory because observation is affected by discharge timing.\n"""
+    md = f"""# Frozen MIMIC-IV and PSU publication integration\n\nThis package is generated only from the frozen aggregate source snapshot. No patient-level data are read and no models are refit.\n\n## Primary interpretation\n\n- MIMIC-IV corrected primary stabilized IPTW: 30-day mortality RD {m_rd:+.2f} percentage points (95% CI {m_lo:+.2f} to {m_hi:+.2f}), RR {mimic_primary['risk_ratio']:.3f} (95% CI {float(mimic_rr_ci['lower_95']):.3f} to {float(mimic_rr_ci['upper_95']):.3f}).\n- PSU modified external replication: publication-locked 30-day mortality RD {p_rd:+.2f} percentage points (95% CI {p_lo:+.2f} to {p_hi:+.2f}), RR {expected['primary mortality RR']:.3f}.\n- These estimates should not be forced into agreement. The PSU analysis is a modified external replication with materially different culture-result, timing, route, and data-model semantics.\n- The cross-dataset result that is most consistent is reduced antibiotic burden after de-escalation.\n\n## MIMIC progressive adjustment\n\nThe mortality association moves from approximately -4.14 percentage points in M1 to +0.84 percentage points in fully adjusted M4, supporting strong confounding by clinical improvement and treatment intensity. The final MIMIC ATE retains residual balance/positivity limitations (maximum post-weighting absolute SMD {mimic_weight['max_post_smd']:.3f}; treated ESS {mimic_weight['ess_deescalated_stopped']:.0f}).\n\n## PSU reproducibility status\n\nThe PSU publication parity check passed all 29 checks. Mortality quantities in the harmonized table use the accepted publication values embedded in that checker; current rerun values can vary slightly within the validated numerical tolerances.\n\n## Files\n\n- `harmonized_mortality_results.csv`\n- `harmonized_secondary_outcomes.csv`\n- `mimic_progressive_adjustment.csv`\n- `weighting_diagnostics.csv`\n\nThe late recurrent/persistent antibiotic-course outcome remains exploratory because observation is affected by discharge timing.\n"""
     (OUT / "publication_integration_summary.md").write_text(md)
 
 
