@@ -139,7 +139,7 @@ def _draw_attrition(ax, f: pd.DataFrame) -> None:
     y = np.arange(len(stages))[::-1]
     max_n = float(n[0])
     retained_col = max_n * 1.035
-    excluded_col = max_n * 1.24
+    excluded_col = max_n * 1.285
 
     for idx, (ni, pi, yi) in enumerate(zip(n, prev, y)):
         ax.barh(
@@ -203,7 +203,7 @@ def _draw_attrition(ax, f: pd.DataFrame) -> None:
     tick_labels = [SHORT_STAGE[s] for s in stages["stage"]]
     ax.set_yticklabels(tick_labels, fontsize=6.4, linespacing=1.10)
     ax.get_yticklabels()[-1].set_fontweight("bold")
-    ax.set_xlim(0, excluded_col * 1.02)
+    ax.set_xlim(0, excluded_col * 1.015)
     ax.set_ylim(-0.65, len(stages) - 0.15)
     ax.set_xticks([])
     ax.spines["bottom"].set_visible(False)
