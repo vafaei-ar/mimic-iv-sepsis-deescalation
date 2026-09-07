@@ -121,7 +121,6 @@ def _draw_timeline(ax) -> None:
             fontsize=6.3,
             color=INK,
         )
-    fs.panel_label(ax, "a", dx=-0.02, dy=0.98)
 
 
 def _draw_attrition(ax, f: pd.DataFrame) -> None:
@@ -140,7 +139,7 @@ def _draw_attrition(ax, f: pd.DataFrame) -> None:
     y = np.arange(len(stages))[::-1]
     max_n = float(n[0])
     retained_col = max_n * 1.035
-    excluded_col = max_n * 1.31
+    excluded_col = max_n * 1.24
 
     for idx, (ni, pi, yi) in enumerate(zip(n, prev, y)):
         ax.barh(
@@ -204,12 +203,11 @@ def _draw_attrition(ax, f: pd.DataFrame) -> None:
     tick_labels = [SHORT_STAGE[s] for s in stages["stage"]]
     ax.set_yticklabels(tick_labels, fontsize=6.4, linespacing=1.10)
     ax.get_yticklabels()[-1].set_fontweight("bold")
-    ax.set_xlim(0, excluded_col * 1.025)
+    ax.set_xlim(0, excluded_col * 1.02)
     ax.set_ylim(-0.65, len(stages) - 0.15)
     ax.set_xticks([])
     ax.spines["bottom"].set_visible(False)
     fs.strip_y_axis(ax)
-    fs.panel_label(ax, "b", dx=-0.38, dy=0.99)
 
 
 def _draw_treatment_split(ax, f: pd.DataFrame) -> None:
@@ -282,23 +280,42 @@ def _draw_treatment_split(ax, f: pd.DataFrame) -> None:
     ax.set_yticks([])
     for spine in ("bottom", "left"):
         ax.spines[spine].set_visible(False)
-    fs.panel_label(ax, "c", dx=-0.06, dy=0.98)
+
+
+def _figure_panel_label(fig, ax, letter: str, *, x: float = 0.018, y_pad: float = 0.004) -> None:
+    """Place Figure 1 panel labels in one left-margin column, outside plot content."""
+    pos = ax.get_position()
+    fig.text(
+        x,
+        min(pos.y1 + y_pad, 0.985),
+        letter,
+        fontsize=8,
+        fontweight="bold",
+        va="bottom",
+        ha="left",
+        color=INK,
+    )
 
 
 def build_fig1() -> None:
     """Build Figure 1: target-trial timing, cohort attrition, and treatment split."""
     f = pd.read_csv(FLOW)
     fig = plt.figure(figsize=(fs.DOUBLE, 4.35))
-    gs = fig.add_gridspec(
-        3,
-        1,
-        height_ratios=[1.00, 2.15, 0.78],
-        hspace=0.34,
-    )
-    _draw_timeline(fig.add_subplot(gs[0]))
-    _draw_attrition(fig.add_subplot(gs[1]), f)
-    _draw_treatment_split(fig.add_subplot(gs[2]), f)
-    fig.subplots_adjust(left=0.30, right=0.97, top=0.97, bottom=0.07)
+
+    # Use deliberately different axes widths so the full visual footprint of
+    # each panel, including panel-b row labels and count columns, is comparable.
+    # Panel labels occupy a separate left-margin column and never sit over data.
+    ax_a = fig.add_axes([0.205, 0.745, 0.765, 0.215])
+    ax_b = fig.add_axes([0.245, 0.315, 0.625, 0.345])
+    ax_c = fig.add_axes([0.205, 0.080, 0.765, 0.155])
+
+    _draw_timeline(ax_a)
+    _draw_attrition(ax_b, f)
+    _draw_treatment_split(ax_c, f)
+
+    _figure_panel_label(fig, ax_a, "a")
+    _figure_panel_label(fig, ax_b, "b")
+    _figure_panel_label(fig, ax_c, "c")
     fs.savefig(fig, OUT, "Fig1_target_trial_and_cohort")
 
 
@@ -665,7 +682,7 @@ def build_esm2() -> None:
     w, _, _ = fit_stabilized_iptw(d, CANDIDATE_PS_VARS)
     fig, axes = plt.subplots(1, 2, figsize=(fs.DOUBLE, 2.40))
     groups = [
-        (1, "De-escalated/stopped", GREEN),
+        (1, "De-escalation or stopping", GREEN),
         (0, "Continued broad-spectrum", MUTED),
     ]
 
@@ -704,7 +721,7 @@ def build_esm2() -> None:
         ax.spines["left"].set_visible(False)
         fs.panel_label(ax, "ab"[panel_index], dx=-0.06)
 
-        top_label = "de-escalated/stopped"
+        top_label = "de-escalation or stopping"
         bottom_label = "continued broad-spectrum"
         if panel_index == 1:
             ess_treated = _effective_sample_size(series[1])
