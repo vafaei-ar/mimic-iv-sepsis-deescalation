@@ -13,6 +13,14 @@ import numpy as np
 import pandas as pd
 
 PUBLICATION_SECONDARY_OVERRIDES = {
+    # Designated PSU stabilized-ATE 1,000-bootstrap HFD contrast from
+    # outputs/psu_point_estimates/latest/{point_estimates,bootstrap_ci}.csv.
+    # Point = 1.451512491; 95% CI = [1.124427346, 1.780643558].
+    ("PSU", "Hospital-free days"): {
+        "estimate": 1.45,
+        "ci95_low": 1.12,
+        "ci95_high": 1.78,
+    },
     ("PSU", "Antibiotic-free days"): {
         "estimate": 3.16,
         "ci95_low": 2.85,
