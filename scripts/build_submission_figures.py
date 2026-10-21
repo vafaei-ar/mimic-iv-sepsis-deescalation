@@ -8,6 +8,7 @@ editorial role. No inferential analysis is rerun and no scientific value is chan
 from __future__ import annotations
 
 from pathlib import Path
+import base64
 import shutil
 
 import matplotlib.pyplot as plt
@@ -162,6 +163,13 @@ def main() -> None:
     _copy_alias("Fig1_target_trial_and_cohort", "Fig1_target_trial_timeline")
     _copy_alias("ESM_Fig1_covariate_balance", "ESM_Fig1_mimic_balance_love")
     _copy_alias("ESM_Fig2_propensity_overlap", "ESM_Fig2_mimic_ps_weights")
+
+    # Transport-only direct-text artifact: byte-exact PNG for readers that
+    # cannot retrieve the binary R2 bundle. No figure pixels are modified.
+    fig3_png = OUT / "Fig3_cross_dataset_outcomes.png"
+    (OUT / "Fig3_cross_dataset_outcomes_png.base64.txt").write_text(
+        base64.b64encode(fig3_png.read_bytes()).decode("ascii"), encoding="ascii"
+    )
     print("Built ICM submission Figure 1-3 and ESM Figure 1-2 from frozen inputs")
 
 
