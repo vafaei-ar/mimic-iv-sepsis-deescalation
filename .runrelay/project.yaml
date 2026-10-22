@@ -42,6 +42,18 @@ tasks:
       - outputs/psu_publication_parity/latest/parity_report.json
       - outputs/psu_publication_parity/latest/parity_checks.csv
 
+  publication_stop_time_summary:
+    description: Export existing aggregate MIMIC missing-stop-time sensitivity point estimates, without rerunning analyses or reading patient-level records.
+    command:
+      - .venv/bin/python
+      - scripts/export_stop_time_assumption_summary.py
+    approval: manual
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/stop_time_audit/stop_time_sensitivity_summary.json
+
   publication_output_inventory:
     description: Inventory only project-local aggregate outputs to identify the frozen MIMIC and PSU publication result packages; do not read or export patient-level data.
     command:
