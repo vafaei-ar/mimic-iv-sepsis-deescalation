@@ -360,3 +360,21 @@ tasks:
     requires_gpu: false
     working_directory: .
     artifacts: []
+
+  psu_submission_sensitivity_checks:
+    description: Run post hoc patient-clustered PSU mortality bootstrap and calendar-day 30 boundary audit against frozen strict cohort; publish aggregate outcomes only.
+    command:
+      - .venv/bin/python
+      - scripts/run_psu_submission_sensitivities.py
+      - /home/asadr/Depts/PHS/PATH_CDM/Hwang_Bonavia
+      - --output-dir
+      - outputs/publication_integration/psu_submission_sensitivities
+    approval: manual
+    timeout_minutes: 120
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/psu_submission_sensitivities/psu_patient_cluster_bootstrap_ci.csv
+      - outputs/publication_integration/psu_submission_sensitivities/psu_submission_sensitivity_summary.json
+      - outputs/publication_integration/psu_submission_sensitivities/psu_submission_diagnostics.json
+
