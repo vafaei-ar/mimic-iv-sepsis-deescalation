@@ -378,3 +378,16 @@ tasks:
       - outputs/publication_integration/psu_submission_sensitivities/psu_submission_sensitivity_summary.json
       - outputs/publication_integration/psu_submission_sensitivities/psu_submission_diagnostics.json
 
+
+  publication_target_missingness:
+    description: Export only frozen aggregate MIMIC and Penn State treatment-group missingness summaries for TARGET reporting, suppressing small cells and marking unidentifiable original missingness.
+    command:
+      - .venv/bin/python
+      - scripts/export_target_missingness.py
+    approval: automatic
+    timeout_minutes: 10
+    requires_gpu: false
+    working_directory: .
+    artifacts:
+      - outputs/publication_integration/target_missingness/target_groupwise_missingness.csv
+      - outputs/publication_integration/target_missingness/target_groupwise_missingness.json
