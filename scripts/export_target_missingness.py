@@ -25,6 +25,8 @@ def num(x):
         return None
 
 def safe_count(n, denominator):
+    if n == -1:
+        return "<11", "Suppressed"
     if n is None:
         return "NR", "NR"
     if not 0 <= n <= denominator:
@@ -70,6 +72,11 @@ def main():
             else:
                 a=num(row.get("deescalated_missing_n"))
                 b=num(row.get("continued_missing_n"))
+                # The frozen PSU baseline exporter suppresses nonzero counts
+                # below 11 as blank. Those blanks are known suppressed cells,
+                # not source-unrecoverable missingness.
+                if a is None: a=-1
+                if b is None: b=-1
                 if typ=="continuous":
                     status="Missing in un-imputed PSU analysis covariate"
                 else:
